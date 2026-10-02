@@ -23,6 +23,15 @@ jobs:
       - name: Read version
         run: echo "VERSION=$(cat VERSION | tr -d '[:space:]')" >> $GITHUB_ENV
 
+      # Deterministic Explorer icon + version info: regenerated from
+      # pc/versioninfo.json (IconPath -> brand/3sverse_icon.ico) on every
+      # build so the exe in File Explorer always carries the current 3SV mark.
+      - name: Regenerate Windows resources (3SV icon + version info)
+        working-directory: pc
+        run: |
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
+          "$(go env GOPATH)/bin/goversioninfo" -o=rsrc_windows_amd64.syso
+
       - name: Build Windows exe
         working-directory: pc
         run: |
@@ -52,7 +61,7 @@ jobs:
           body: |
             Local WiFi file transfer - phone to PC. No internet, no cloud.
 
-            - `3SVerse-WiFi-Transfer-PC-v*.exe` - single-file PC receiver (no install)
+            - `3SVerse-WiFi-Transfer-PC-v*.exe` - single-file PC receiver (no install). Run it and the Studio-branded dashboard opens in your browser.
             - `3SVerse-WiFi-Transfer-Android-v*.apk` - Android app (side-load)
 
             Both devices must be on the SAME WiFi router network.

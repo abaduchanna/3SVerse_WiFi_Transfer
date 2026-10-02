@@ -55,8 +55,8 @@ jobs:
 
             Both devices must be on the SAME WiFi router network.
 
-            **Install tip:** agar purani version installed hai to nayi APK seedha
-            usi par install ho jayegi (same signature). Play Protect warn kare to
+            **Install tip:** if an older version is already installed, the new APK
+            installs right over it (same signature). If Play Protect warns, choose
             "More details" > "Install anyway". Android 8.0+ required.
           files: rel/3SVerse-WiFi-Transfer-Android-v${{ env.VERSION }}.apk
           allow_updates: true

@@ -18,7 +18,13 @@ import android.provider.DocumentsContract;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.RotateAnimation;
+import android.view.animation.TranslateAnimation;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -106,13 +112,14 @@ public class MainActivity extends Activity {
     }
 
     private void colors() {
-        bg = dark ? Color.rgb(16, 32, 26) : Color.rgb(242, 247, 245);
-        card = dark ? Color.rgb(23, 45, 37) : Color.WHITE;
-        textMain = dark ? Color.rgb(231, 243, 238) : Color.rgb(11, 31, 23);
-        textSub = dark ? Color.rgb(157, 184, 173) : Color.rgb(91, 107, 100);
-        accentDark = dark ? Color.rgb(52, 211, 153) : Color.rgb(11, 122, 85);
-        line = dark ? Color.rgb(40, 70, 58) : Color.rgb(220, 232, 227);
-        dimText = dark ? Color.rgb(95, 120, 110) : Color.rgb(160, 175, 168);
+        // 3SVerse Studio palette (same tokens as the PC app / 3sverse.com)
+        bg = dark ? Color.rgb(7, 6, 11) : Color.rgb(245, 241, 230);
+        card = dark ? Color.rgb(13, 12, 20) : Color.WHITE;
+        textMain = dark ? Color.rgb(245, 241, 230) : Color.rgb(20, 18, 26);
+        textSub = dark ? Color.rgb(155, 151, 179) : Color.rgb(107, 104, 128);
+        accentDark = dark ? Color.rgb(110, 231, 239) : Color.rgb(14, 124, 140);
+        line = dark ? Color.rgb(35, 33, 48) : Color.rgb(230, 228, 238);
+        dimText = dark ? Color.rgb(94, 90, 117) : Color.rgb(160, 175, 168);
     }
 
     // ------------------------------------------------------------------
@@ -143,12 +150,27 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16), dp(12), dp(16), dp(16));
-        root.setBackgroundColor(bg);
 
-        TextView title = label("3SVerse WiFi Transfer", 22, true, textMain);
-        TextView sub = label("Phone → PC • local WiFi • internet nahi lagta", 12, false, textSub);
-        root.addView(title);
-        root.addView(sub);
+        // Stacked brand header (Studio pattern): logo / headline / sub-heading
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.logo);
+        logo.setAdjustViewBounds(true);
+        logo.setMaxHeight(dp(56));
+        LinearLayout.LayoutParams lp0 = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp0.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(logo, lp0);
+        root.addView(space(6));
+
+        TextView title = label("3SVERSE WIFI TRANSFER", 16, true, textMain);
+        title.setLetterSpacing(0.18f);
+        TextView sub = label("PHONE → PC · LOCAL WIFI · NO CLOUD", 10, false, textSub);
+        sub.setLetterSpacing(0.3f);
+        LinearLayout.LayoutParams lpT = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lpT.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(title, lpT);
+        root.addView(sub, new LinearLayout.LayoutParams(lpT));
         root.addView(space(10));
 
         // --- connection card ---
@@ -176,7 +198,7 @@ public class MainActivity extends Activity {
         row.addView(ipInput, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button testBtn = btn("Test");
+        Button testBtn = btnGhost("Test");
         testBtn.setOnClickListener(v -> testPc());
         LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -192,13 +214,13 @@ public class MainActivity extends Activity {
 
         // --- source / browser card ---
         LinearLayout c2 = cardBox();
-        c2.addView(label("Kya Bhejna Hai (Selection)", 14, true, textMain));
+        c2.addView(label("What to Send (Selection)", 14, true, textMain));
         c2.addView(space(6));
 
-        rootLabel = label("Main folder: (choose nahi hua)", 12, false, textSub);
+        rootLabel = label("Main folder: (not chosen yet)", 12, false, textSub);
         c2.addView(rootLabel);
 
-        Button pickBtn = btn("Main Folder Choose Karein (Internal Storage)");
+        Button pickBtn = btn("Choose the Main Folder (Internal Storage)");
         pickBtn.setOnClickListener(v -> pickFolder());
         c2.addView(pickBtn, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -218,12 +240,12 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(240)));
         c2.addView(space(6));
 
-        TextView hint = label("Folder ka checkbox = pura folder (sare sub-folders). "
-                + "Naam par tap = folder kholein/band. File ka checkbox = sirf wo file.", 11, false, textSub);
+        TextView hint = label("Folder checkbox = the whole folder (all sub-folders). "
+                + "Tap a name to expand/collapse it. A file checkbox selects just that file.", 11, false, textSub);
         c2.addView(hint);
         c2.addView(space(8));
 
-        selSummary = label("Selected: kuch nahi", 12, true, accentDark);
+        selSummary = label("Selected: nothing", 12, true, accentDark);
         c2.addView(selSummary);
         c2.addView(space(8));
 
@@ -236,9 +258,9 @@ public class MainActivity extends Activity {
 
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL);
-        pauseBtn = btn("Pause");
+        pauseBtn = btnGhost("Pause");
         pauseBtn.setOnClickListener(v -> startService(svc(TransferService.ACTION_PAUSE)));
-        stopBtn = btn("Stop");
+        stopBtn = btnGhost("Stop");
         stopBtn.setOnClickListener(v -> startService(svc(TransferService.ACTION_STOP)));
         row2.addView(pauseBtn, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -254,7 +276,7 @@ public class MainActivity extends Activity {
         LinearLayout c3 = cardBox();
         c3.addView(label("Progress", 14, true, textMain));
         c3.addView(space(6));
-        phaseText = label("Koi transfer chal nahi raha.", 13, false, textMain);
+        phaseText = label("No transfer running.", 13, false, textMain);
         c3.addView(phaseText);
         c3.addView(space(6));
         fileText = label("", 12, false, textSub);
@@ -283,9 +305,62 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(140)));
         root.addView(c4);
 
+        // Animated brand background (Studio): the 3sverse.com hero ring +
+        // glossy orb behind the content, at the site's exact speeds
+        // (ring 120s/turn + 16px/12s float, orb 140s/turn + 12px/13s float).
+        FrameLayout bgLayer = new FrameLayout(this);
+        bgLayer.setBackgroundColor(bg);
+
+        ImageView ring = new ImageView(this);
+        ring.setImageResource(R.drawable.bg_spiral);
+        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(dp(520), dp(540));
+        rp.gravity = Gravity.TOP | Gravity.END;
+        rp.setMarginEnd(dp(210));
+        rp.topMargin = dp(30);
+        ring.setLayoutParams(rp);
+        ring.setAlpha(0.45f);
+        RotateAnimation ringSpin = new RotateAnimation(0f, 360f,
+                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
+        ringSpin.setDuration(120000L);
+        ringSpin.setInterpolator(new LinearInterpolator());
+        ringSpin.setRepeatCount(Animation.INFINITE);
+        ring.startAnimation(ringSpin);
+        TranslateAnimation ringFloat = new TranslateAnimation(0f, 0f, dp(16), -dp(16));
+        ringFloat.setDuration(6000L);
+        ringFloat.setRepeatMode(Animation.REVERSE);
+        ringFloat.setRepeatCount(Animation.INFINITE);
+        ring.startAnimation(ringFloat);
+        bgLayer.addView(ring);
+
+        ImageView orb = new ImageView(this);
+        orb.setImageResource(R.drawable.bg_orb);
+        FrameLayout.LayoutParams op = new FrameLayout.LayoutParams(dp(300), dp(300));
+        op.gravity = Gravity.BOTTOM | Gravity.START;
+        op.leftMargin = dp(60);
+        op.bottomMargin = dp(70);
+        orb.setLayoutParams(op);
+        orb.setAlpha(0.4f);
+        RotateAnimation orbSpin = new RotateAnimation(0f, 360f,
+                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
+        orbSpin.setDuration(140000L);
+        orbSpin.setInterpolator(new LinearInterpolator());
+        orbSpin.setRepeatCount(Animation.INFINITE);
+        orb.startAnimation(orbSpin);
+        TranslateAnimation orbFloat = new TranslateAnimation(0f, 0f, dp(12), -dp(12));
+        orbFloat.setDuration(6500L);
+        orbFloat.setRepeatMode(Animation.REVERSE);
+        orbFloat.setRepeatCount(Animation.INFINITE);
+        orb.startAnimation(orbFloat);
+        bgLayer.addView(orb);
+
         ScrollView outer = new ScrollView(this);
         outer.addView(root);
-        setContentView(outer);
+        FrameLayout rootFrame = new FrameLayout(this);
+        rootFrame.addView(bgLayer, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        rootFrame.addView(outer, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(rootFrame);
     }
 
     // ------------------------------------------------------------------
@@ -308,7 +383,7 @@ public class MainActivity extends Activity {
     private void renderBrowser() {
         browserBox.removeAllViews();
         if (rootUriStr == null) {
-            TextView t = label("Pehle Main Folder choose karein.", 12, false, textSub);
+            TextView t = label("Choose the Main Folder first.", 12, false, textSub);
             t.setPadding(dp(6), dp(10), dp(6), dp(10));
             browserBox.addView(t);
             updateSummary();
@@ -387,11 +462,11 @@ public class MainActivity extends Activity {
         int nf = checkedFiles.size();
         int nd = checkedDirs.size();
         if (nf == 0 && nd == 0) {
-            selSummary.setText("Selected: kuch nahi");
+            selSummary.setText("Selected: nothing");
             selSummary.setTextColor(textSub);
         } else {
             selSummary.setText("Selected: " + nd + " folder(s), " + nf + " file(s)"
-                    + (checkedDirs.contains(rootDocId) ? "  •  PURA STORAGE" : ""));
+                    + (checkedDirs.contains(rootDocId) ? "  •  ENTIRE STORAGE" : ""));
             selSummary.setTextColor(accentDark);
         }
     }
@@ -408,14 +483,33 @@ public class MainActivity extends Activity {
     }
 
     private Button btn(String s) {
+        // Primary CTA: the Studio cyan -> magenta gradient with dark text
         Button b = new Button(this);
         b.setText(s);
         b.setAllCaps(false);
         b.setTextSize(14);
-        b.setTextColor(Color.WHITE);
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(accentDark);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setTextColor(Color.rgb(7, 6, 11));
+        GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Color.rgb(110, 231, 239), Color.rgb(228, 75, 215)});
         g.setCornerRadius(dp(12));
+        b.setBackground(g);
+        b.setPadding(dp(14), dp(10), dp(14), dp(10));
+        return b;
+    }
+
+    private Button btnGhost(String s) {
+        // Secondary action: Studio ghost style (bordered, dim text)
+        Button b = new Button(this);
+        b.setText(s);
+        b.setAllCaps(false);
+        b.setTextSize(14);
+        b.setTextColor(dark ? Color.rgb(185, 181, 204) : Color.rgb(20, 18, 26));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(Color.TRANSPARENT);
+        g.setCornerRadius(dp(12));
+        g.setStroke(dp(1), line);
         b.setBackground(g);
         b.setPadding(dp(14), dp(10), dp(14), dp(10));
         return b;
@@ -475,7 +569,7 @@ public class MainActivity extends Activity {
                     final String host = parts[3];
                     runOnUiThread(() -> {
                         if (foundPc != null) {
-                            foundPc.setText("PC mil gaya: " + ip + "  (" + host + ")");
+                            foundPc.setText("PC found: " + ip + "  (" + host + ")");
                             foundPc.setTextColor(accentDark);
                         }
                         if (ipInput != null && ipInput.getText().toString().trim().isEmpty()) {
@@ -496,15 +590,15 @@ public class MainActivity extends Activity {
     private void testPc() {
         final String ip = ipInput.getText().toString().trim();
         if (ip.isEmpty()) {
-            Toast.makeText(this, "Pehle PC ka IP likhein", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Enter the PC IP first", Toast.LENGTH_SHORT).show();
             return;
         }
-        status.setText("Status: test ho raha hai…");
+        status.setText("Status: testing…");
         new Thread(() -> {
             String res = hello(ip);
             runOnUiThread(() -> {
                 if (res == null) {
-                    status.setText("Status: PC se raabta FAIL. Same WiFi? Firewall 'Allow'? IP sahi?");
+                    status.setText("Status: PC unreachable. Same WiFi? Firewall allowed? Correct IP?");
                     status.setTextColor(Color.rgb(220, 60, 60));
                 } else {
                     status.setText("Status: PC READY (" + res + " free space)");
@@ -546,7 +640,7 @@ public class MainActivity extends Activity {
                     | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
             startActivityForResult(i, REQ_PICK_FOLDER);
         } catch (Exception e) {
-            Toast.makeText(this, "Folder picker nahi khula: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Folder picker failed to open: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -572,7 +666,7 @@ public class MainActivity extends Activity {
             checkedDirs.add(rootDocId); // default: whole picked folder
             SafTree.Node rootNode = new SafTree.Node(rootDocId, rootName, "", true, 0);
             nodeByDocId.put(rootDocId, rootNode);
-            rootLabel.setText("Main folder: " + rootName + "  (pura transfer selected hai)");
+            rootLabel.setText("Main folder: " + rootName + "  (entire transfer selected)");
             expanded.add(rootDocId);
             renderBrowser();
             log("Main folder: " + rootName);
@@ -589,15 +683,15 @@ public class MainActivity extends Activity {
     private void startTransfer() {
         final String ip = ipInput.getText().toString().trim();
         if (ip.isEmpty()) {
-            Toast.makeText(this, "Pehle PC ka IP likhein (ya PC ka server chalne dein)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Enter the PC IP first (or let the PC server run)", Toast.LENGTH_SHORT).show();
             return;
         }
         if (rootUriStr == null) {
-            Toast.makeText(this, "Pehle Main Folder choose karein", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Choose the Main Folder first", Toast.LENGTH_SHORT).show();
             return;
         }
         if (checkedDirs.isEmpty() && checkedFiles.isEmpty()) {
-            Toast.makeText(this, "Koi folder/file select nahi hui", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No folder/file selected", Toast.LENGTH_SHORT).show();
             return;
         }
         List<String> selDirs = new ArrayList<>();
@@ -649,7 +743,7 @@ public class MainActivity extends Activity {
             public void run() {
                 if (!uiRunning) return;
                 TransferService.State s = TransferService.STATE;
-                phaseText.setText(s.message.isEmpty() ? "Koi transfer chal nahi raha." : s.message);
+                phaseText.setText(s.message.isEmpty() ? "No transfer running." : s.message);
                 switch (s.phase) {
                     case TransferService.State.TRANSFERRING:
                         fileText.setText("File: " + s.currentFile

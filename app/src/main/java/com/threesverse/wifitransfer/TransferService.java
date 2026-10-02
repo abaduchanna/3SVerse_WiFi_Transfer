@@ -223,22 +223,22 @@ public class TransferService extends Service {
         try {
             // Phase 1: hello (PC reachable?)
             STATE.phase = State.SCANNING;
-            STATE.message = "PC se connect ho raha hun…";
+            STATE.message = "Connecting to the PC…";
             JSONObject hello = httpGetJson("/hello");
             if (hello == null || !hello.optBoolean("ok")) {
-                throw new Exception("PC address " + host + ":" + port
-                        + " se raabta nahi hua. PC par server chal raha hai aur dono same WiFi par hain? "
-                        + "(Windows Firewall prompt 'Allow' karein)");
+                throw new Exception("Could not reach PC address " + host + ":" + port
+                        + ". Is the PC server running and both devices on the same WiFi? "
+                        + "(Allow the Windows Firewall prompt)");
             }
 
             // Phase 2: build file list from the user's selection
-            STATE.message = "Folders scan ho rahe hain…";
+            STATE.message = "Scanning folders…";
             List<SafTree.Entry> all = new ArrayList<>();
             Set<String> seen = new HashSet<>();
             final int[] lastScan = {0};
             SafTree.ScanProgress cb = count -> {
                 lastScan[0] = count;
-                STATE.message = "Folders scan ho rahe hain… " + count + " files mile";
+                STATE.message = "Scanning folders… " + count + " files found";
             };
             Uri tree = Uri.parse(holder.treeUri);
             String[] selDirs = intentDirs;
@@ -270,7 +270,7 @@ public class TransferService extends Service {
             STATE.message = all.size() + " files • " + human(total);
             if (all.isEmpty()) {
                 STATE.phase = State.DONE;
-                STATE.message = "Koi file nahi mili (khaali folder).";
+                STATE.message = "No files found (empty folder).";
                 stopForegroundService();
                 return;
             }
@@ -293,12 +293,12 @@ public class TransferService extends Service {
 
             if (cancelled) {
                 STATE.phase = State.IDLE;
-                STATE.message = "Transfer stop kiya gaya. Dobara Start karenge to baqi files resume hongi.";
+                STATE.message = "Transfer stopped. Press Start again to resume the remaining files.";
             } else {
                 STATE.phase = State.DONE;
-                STATE.message = "Mukammal! " + STATE.filesDone + " files bhejin, "
-                        + STATE.filesSkipped + " pehle se PC par thin, "
-                        + STATE.filesFailed + " fail.";
+                STATE.message = "Done! " + STATE.filesDone + " files sent, "
+                        + STATE.filesSkipped + " were already on the PC, "
+                        + STATE.filesFailed + " failed.";
                 try {
                     JSONObject done = new JSONObject();
                     done.put("files", STATE.filesDone);
@@ -454,7 +454,7 @@ public class TransferService extends Service {
             c.setReadTimeout(30000);
             c.setRequestProperty("Content-Type", "application/octet-stream");
             InputStream in = cr.openInputStream(e.docUri);
-            if (in == null) throw new Exception("File open nahi hui: " + e.relPath);
+            if (in == null) throw new Exception("Could not open file: " + e.relPath);
             long sent = 0;
             try (OutputStream out = c.getOutputStream()) {
                 byte[] buf = new byte[BUF];

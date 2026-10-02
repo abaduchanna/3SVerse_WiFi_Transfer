@@ -1,26 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 3SVerse Studio palette (matches the PC app / 3sverse.com) -->
     <style name="AppThemeLight" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#0E9F6E</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:statusBarColor">#0B7A55</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowBackground">#F2F7F5</item>
-        <item name="android:colorBackground">#F2F7F5</item>
-        <item name="android:textColorPrimary">#0B1F17</item>
-        <item name="android:textColorSecondary">#5B6B64</item>
+        <item name="android:colorAccent">#0E7C8C</item>
+        <item name="android:navigationBarColor">#F5F1E6</item>
+        <item name="android:statusBarColor">#E8E4D9</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">#F5F1E6</item>
+        <item name="android:colorBackground">#F5F1E6</item>
+        <item name="android:textColorPrimary">#14121A</item>
+        <item name="android:textColorSecondary">#6B6880</item>
     </style>
 
     <style name="AppThemeDark" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#34D399</item>
-        <item name="android:navigationBarColor">#10201A</item>
-        <item name="android:statusBarColor">#0B7A55</item>
+        <item name="android:colorAccent">#6EE7EF</item>
+        <item name="android:navigationBarColor">#0D0C14</item>
+        <item name="android:statusBarColor">#07060B</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowBackground">#10201A</item>
-        <item name="android:colorBackground">#10201A</item>
-        <item name="android:textColorPrimary">#E7F3EE</item>
-        <item name="android:textColorSecondary">#9DB8AD</item>
+        <item name="android:windowBackground">#07060B</item>
+        <item name="android:colorBackground">#07060B</item>
+        <item name="android:textColorPrimary">#F5F1E6</item>
+        <item name="android:textColorSecondary">#9B97B3</item>
     </style>
 </resources>

@@ -31,7 +31,7 @@ const (
         port      = 8765
         discPort  = 8766
         discMagic = "3SVERSE-XFER"
-        version   = "1.1.0"
+        version   = "1.2.0"
 )
 
 var driveRe = regexp.MustCompile(`^[A-Za-z]:`)
@@ -165,6 +165,27 @@ func (sv *Server) writeJSONCode(w http.ResponseWriter, code int, obj interface{}
 
 func (sv *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         switch {
+        case r.URL.Path == "/" && r.Method == "GET":
+                sv.serveGUI(w, r)
+
+        case r.URL.Path == "/favicon.ico":
+                serveBytes(w, "image/x-icon", faviconICO)
+
+        case r.URL.Path == "/assets/logo.png":
+                serveBytes(w, "image/png", logoPNG)
+
+        case r.URL.Path == "/assets/spiral.webp":
+                serveBytes(w, "image/webp", spiralWEBP)
+
+        case r.URL.Path == "/assets/orb.webp":
+                serveBytes(w, "image/webp", orbWEBP)
+
+        case r.URL.Path == "/stats" && r.Method == "GET":
+                sv.serveStats(w, r)
+
+        case r.URL.Path == "/open-folder" && r.Method == "POST":
+                sv.openFolder(w, r)
+
         case r.URL.Path == "/hello" && r.Method == "GET":
                 var free uint64 = 0
                 if us, err := diskUsage(sv.root); err == nil {
@@ -277,10 +298,12 @@ func main() {
 
         sv := &Server{root: saveDir, st: NewStats(saveDir)}
         ip := lanIP()
+        dash := fmt.Sprintf("http://127.0.0.1:%d/", port)
         fmt.Println("==================================================")
         fmt.Println("  3SVerse WiFi Transfer - PC Receiver  v" + version)
         fmt.Println("==================================================")
-        fmt.Println("  PC Address  :  " + ip + ":" + fmt.Sprint(port))
+        fmt.Println("  Dashboard   :  " + dash + "  (opening in your browser)")
+        fmt.Println("  Phone uses  :  " + ip + ":" + fmt.Sprint(port))
         fmt.Println("  Save folder :  " + saveDir)
         fmt.Println("  (to change save folder:  pc_server.exe -dir D:\\MyFolder)")
         fmt.Println("--------------------------------------------------")
@@ -291,6 +314,19 @@ func main() {
         fmt.Println("")
 
         go broadcastLoop()
+        // Studio-branded dashboard opens automatically (skip with -no-open).
+        noOpen := false
+        for _, a := range os.Args {
+                if a == "-no-open" {
+                        noOpen = true
+                }
+        }
+        if !noOpen {
+                go func() {
+                        time.Sleep(800 * time.Millisecond)
+                        openBrowser(dash)
+                }()
+        }
         go func() {
                 t := time.NewTicker(1 * time.Second)
                 for range t.C {
