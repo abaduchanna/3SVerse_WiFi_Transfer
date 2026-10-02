@@ -9,54 +9,53 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-go@v5
         with:
-          python-version: "3.12"
+          go-version: "1.23"
 
-      - name: Install build deps
-        run: python -m pip install nuitka
+      # Pure-Go cross compile: ONE static exe, no self-extraction, no runtime
+      # dependencies - the cleanest possible profile for antivirus (SentinelOne
+      # etc.). No GUI toolkit, no zip folder - just pc_server.exe.
+      - name: Read version
+        run: echo "VERSION=$(cat VERSION | tr -d '[:space:]')" >> $GITHUB_ENV
 
-      # Standalone (onedir) on purpose: a onefile exe self-extracts into
-      # %TEMP% at runtime, which antivirus static AI treats as packer
-      # behavior (same rationale as the License Studio build).
-      - name: Build with Nuitka (standalone)
-        shell: cmd
-        timeout-minutes: 40
-        run: >
-          python -m nuitka --standalone --assume-yes-for-downloads
-          --enable-plugin=tk-inter
-          --windows-console-mode=disable
-          --company-name="3S Verse"
-          --product-name="3SVerse WiFi Transfer"
-          --file-version="1.0.0.0" --product-version="1.0.0.0"
-          --file-description="3SVerse WiFi Transfer (PC receiver)"
-          --output-dir=build pc\pc_server.py
-
-      - name: Zip standalone folder
-        shell: pwsh
+      - name: Build Windows exe
+        working-directory: pc
         run: |
-          Compress-Archive -Path build\pc_server.dist\* `
-            -DestinationPath 3SVerse-WiFi-Transfer-PC-v1.0.0-standalone.zip -Force
-          Get-Item 3SVerse-WiFi-Transfer-PC-v1.0.0-standalone.zip | Select-Object Name, Length
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags "-s -w" \
+            -o "../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe" .
+          file "../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe" || true
+          ls -la ..
 
-      - name: Attach PC zip to release
+      - name: Smoke test (linux build serves /hello)
+        working-directory: pc
+        run: |
+          go build -o /tmp/pcsrv .
+          /tmp/pcsrv -dir /tmp/xfer_smoke & SRVPID=$!
+          sleep 2
+          curl -sf http://127.0.0.1:8765/hello | grep -q '"ok":true'
+          echo "smoke test OK"
+          kill $SRVPID
+
+      - name: Attach EXE to release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: xfer-v1.0.0
-          name: 3SVerse WiFi Transfer v1.0.0
+          tag_name: xfer-v${{ env.VERSION }}
+          name: 3SVerse WiFi Transfer v${{ env.VERSION }}
           body: |
             Local WiFi file transfer - phone to PC. No internet, no cloud.
 
-            - `3SVerse-WiFi-Transfer-PC-*.zip` - PC receiver (run `pc_server.exe`)
-            - `3SVerse-WiFi-Transfer-Android-*.apk` - Android app (side-load)
+            - `3SVerse-WiFi-Transfer-PC-v*.exe` - single-file PC receiver (no install)
+            - `3SVerse-WiFi-Transfer-Android-v*.apk` - Android app (side-load)
 
             Both devices must be on the SAME WiFi router network.
-          files: 3SVerse-WiFi-Transfer-PC-v1.0.0-standalone.zip
+          files: 3SVerse-WiFi-Transfer-PC-v${{ env.VERSION }}.exe
           allow_updates: true
           make_latest: true

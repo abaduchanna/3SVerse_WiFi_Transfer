@@ -2,6 +2,7 @@ package com.threesverse.wifitransfer;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -13,9 +14,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.DocumentsContract;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -33,13 +37,20 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 3SVerse WiFi Transfer - phone side.
- * PC receiver broadcasts its address over UDP (port 8766); this app hears it
- * and auto-fills. User picks a folder (SAF), app streams everything to the
- * PC over local WiFi - no internet involved.
+ *
+ * Pick a main folder once (usually Internal Storage = whole phone), browse it
+ * in-app: folders expandable, checkbox = include whole folder, individual
+ * files selectable too. Transfer streams to the PC over local WiFi.
  */
 public class MainActivity extends Activity {
 
@@ -48,20 +59,32 @@ public class MainActivity extends Activity {
     private static final String DISC_MAGIC = "3SVERSE-XFER";
 
     private boolean dark;
-    private int bg, card, textMain, textSub, accent, accentDark, line;
+    private int bg, card, textMain, textSub, accentDark, line, dimText;
 
     private EditText ipInput;
     private TextView status;
+    private TextView foundPc;
+    private TextView rootLabel;
+    private TextView selSummary;
+    private LinearLayout browserBox;
+    private ScrollView browserScroll;
+    private Button startBtn;
+    private Button pauseBtn;
+    private Button stopBtn;
     private TextView phaseText;
     private TextView fileText;
     private TextView totalText;
     private ProgressBar fileBar;
     private ProgressBar totalBar;
     private TextView logText;
-    private Button startBtn;
-    private Button pauseBtn;
-    private Button stopBtn;
-    private TextView foundPc;
+
+    // --- browser state ---
+    private String rootUriStr, rootDocId, rootName;
+    private final Map<String, List<SafTree.Node>> childrenCache = new HashMap<>();
+    private final Map<String, SafTree.Node> nodeByDocId = new HashMap<>();
+    private final Set<String> expanded = new HashSet<>();
+    private final Set<String> checkedDirs = new HashSet<>();
+    private final Set<String> checkedFiles = new HashSet<>();
 
     private Thread discoThread;
     private volatile DatagramSocket discoSocket;
@@ -87,9 +110,9 @@ public class MainActivity extends Activity {
         card = dark ? Color.rgb(23, 45, 37) : Color.WHITE;
         textMain = dark ? Color.rgb(231, 243, 238) : Color.rgb(11, 31, 23);
         textSub = dark ? Color.rgb(157, 184, 173) : Color.rgb(91, 107, 100);
-        accent = Color.rgb(14, 159, 110);
         accentDark = dark ? Color.rgb(52, 211, 153) : Color.rgb(11, 122, 85);
         line = dark ? Color.rgb(40, 70, 58) : Color.rgb(220, 232, 227);
+        dimText = dark ? Color.rgb(95, 120, 110) : Color.rgb(160, 175, 168);
     }
 
     // ------------------------------------------------------------------
@@ -150,9 +173,8 @@ public class MainActivity extends Activity {
         eg.setStroke(dp(1), line);
         ipInput.setBackground(eg);
         ipInput.setPadding(dp(12), dp(10), dp(12), dp(10));
-        LinearLayout.LayoutParams ipLp = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        row.addView(ipInput, ipLp);
+        row.addView(ipInput, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         Button testBtn = btn("Test");
         testBtn.setOnClickListener(v -> testPc());
@@ -168,28 +190,61 @@ public class MainActivity extends Activity {
         root.addView(c1);
         root.addView(space(10));
 
-        // --- action card ---
+        // --- source / browser card ---
         LinearLayout c2 = cardBox();
-        startBtn = btn("Select Folder & Start Transfer");
-        startBtn.setOnClickListener(v -> pickFolder());
-        startBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        c2.addView(startBtn);
+        c2.addView(label("Kya Bhejna Hai (Selection)", 14, true, textMain));
+        c2.addView(space(6));
+
+        rootLabel = label("Main folder: (choose nahi hua)", 12, false, textSub);
+        c2.addView(rootLabel);
+
+        Button pickBtn = btn("Main Folder Choose Karein (Internal Storage)");
+        pickBtn.setOnClickListener(v -> pickFolder());
+        c2.addView(pickBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         c2.addView(space(8));
+
+        browserBox = new LinearLayout(this);
+        browserBox.setOrientation(LinearLayout.VERTICAL);
+        browserScroll = new ScrollView(this);
+        browserScroll.addView(browserBox);
+        GradientDrawable bg2 = new GradientDrawable();
+        bg2.setColor(dark ? Color.rgb(14, 30, 24) : Color.rgb(245, 248, 247));
+        bg2.setCornerRadius(dp(10));
+        bg2.setStroke(dp(1), line);
+        browserScroll.setBackground(bg2);
+        browserScroll.setPadding(dp(8), dp(8), dp(8), dp(8));
+        c2.addView(browserScroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(240)));
+        c2.addView(space(6));
+
+        TextView hint = label("Folder ka checkbox = pura folder (sare sub-folders). "
+                + "Naam par tap = folder kholein/band. File ka checkbox = sirf wo file.", 11, false, textSub);
+        c2.addView(hint);
+        c2.addView(space(8));
+
+        selSummary = label("Selected: kuch nahi", 12, true, accentDark);
+        c2.addView(selSummary);
+        c2.addView(space(8));
+
+        startBtn = btn("Start Transfer");
+        startBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        startBtn.setOnClickListener(v -> startTransfer());
+        c2.addView(startBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        c2.addView(space(6));
 
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL);
         pauseBtn = btn("Pause");
-        pauseBtn.setOnClickListener(v ->
-                startService(svc(TransferService.ACTION_PAUSE)));
+        pauseBtn.setOnClickListener(v -> startService(svc(TransferService.ACTION_PAUSE)));
         stopBtn = btn("Stop");
-        stopBtn.setOnClickListener(v ->
-                startService(svc(TransferService.ACTION_STOP)));
-        LinearLayout.LayoutParams p1 = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        stopBtn.setOnClickListener(v -> startService(svc(TransferService.ACTION_STOP)));
+        row2.addView(pauseBtn, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         p2.leftMargin = dp(8);
-        row2.addView(pauseBtn, p1);
         row2.addView(stopBtn, p2);
         c2.addView(row2);
         root.addView(c2);
@@ -225,13 +280,125 @@ public class MainActivity extends Activity {
         ScrollView sv = new ScrollView(this);
         sv.addView(logText);
         c4.addView(sv, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(150)));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(140)));
         root.addView(c4);
 
         ScrollView outer = new ScrollView(this);
         outer.addView(root);
         setContentView(outer);
     }
+
+    // ------------------------------------------------------------------
+    // Browser rendering
+    // ------------------------------------------------------------------
+
+    private List<SafTree.Node> childrenOf(String docId, String rel) {
+        List<SafTree.Node> list = childrenCache.get(docId);
+        if (list == null) {
+            ContentResolver cr = getContentResolver();
+            list = SafTree.listChildren(cr, Uri.parse(rootUriStr), docId, rel);
+            childrenCache.put(docId, list);
+            for (SafTree.Node n : list) {
+                if (!nodeByDocId.containsKey(n.docId)) nodeByDocId.put(n.docId, n);
+            }
+        }
+        return list;
+    }
+
+    private void renderBrowser() {
+        browserBox.removeAllViews();
+        if (rootUriStr == null) {
+            TextView t = label("Pehle Main Folder choose karein.", 12, false, textSub);
+            t.setPadding(dp(6), dp(10), dp(6), dp(10));
+            browserBox.addView(t);
+            updateSummary();
+            return;
+        }
+        renderRows(rootDocId, "", 0, false);
+        updateSummary();
+    }
+
+    private void renderRows(String parentDocId, String parentRel, int depth, boolean parentChecked) {
+        List<SafTree.Node> kids = childrenOf(parentDocId, parentRel);
+        for (SafTree.Node n : kids) {
+            addRow(n, depth, parentChecked);
+            if (n.dir && expanded.contains(n.docId)) {
+                renderRows(n.docId, n.rel, depth + 1,
+                        parentChecked || checkedDirs.contains(n.docId));
+            }
+        }
+    }
+
+    private void addRow(final SafTree.Node n, int depth, boolean insideChecked) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(depth * 14), dp(2), dp(2), dp(2));
+
+        final boolean checked = n.dir
+                ? checkedDirs.contains(n.docId)
+                : checkedFiles.contains(n.docId);
+        final boolean locked = insideChecked && !checked;
+
+        CheckBox cb = new CheckBox(this);
+        cb.setChecked(checked);
+        cb.setEnabled(!locked);
+        cb.setScaleX(0.9f);
+        cb.setScaleY(0.9f);
+        cb.setOnCheckedChangeListener((b, isChecked) -> {
+            if (n.dir) {
+                if (isChecked) checkedDirs.add(n.docId);
+                else checkedDirs.remove(n.docId);
+            } else {
+                if (isChecked) checkedFiles.add(n.docId);
+                else checkedFiles.remove(n.docId);
+            }
+            renderBrowser();
+        });
+        row.addView(cb, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView name = new TextView(this);
+        String shown = n.dir
+                ? (expanded.contains(n.docId) ? "▾ " : "▸ ") + n.name
+                : n.name + "  (" + human(n.size) + ")";
+        name.setText(shown);
+        name.setTextSize(13);
+        name.setTextColor(locked ? dimText : (checked ? accentDark : textMain));
+        name.setTypeface(n.dir ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+        name.setSingleLine(true);
+        name.setPadding(dp(2), dp(8), dp(2), dp(8));
+        name.setOnClickListener(v -> {
+            if (!n.dir) return;
+            if (expanded.contains(n.docId)) expanded.remove(n.docId);
+            else {
+                expanded.add(n.docId);
+                childrenOf(n.docId, n.rel); // lazy load
+            }
+            renderBrowser();
+        });
+        row.addView(name, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        browserBox.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    private void updateSummary() {
+        int nf = checkedFiles.size();
+        int nd = checkedDirs.size();
+        if (nf == 0 && nd == 0) {
+            selSummary.setText("Selected: kuch nahi");
+            selSummary.setTextColor(textSub);
+        } else {
+            selSummary.setText("Selected: " + nd + " folder(s), " + nf + " file(s)"
+                    + (checkedDirs.contains(rootDocId) ? "  •  PURA STORAGE" : ""));
+            selSummary.setTextColor(accentDark);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // UI helpers
+    // ------------------------------------------------------------------
 
     private ProgressBar bar() {
         ProgressBar p = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -268,6 +435,16 @@ public class MainActivity extends Activity {
         Intent i = new Intent(this, TransferService.class);
         i.setAction(action);
         return i;
+    }
+
+    private static String human(long b) {
+        if (b < 1024) return b + " B";
+        double v = b;
+        for (String u : new String[]{"KB", "MB", "GB", "TB"}) {
+            v /= 1024.0;
+            if (v < 1024) return String.format(java.util.Locale.US, "%.1f %s", v, u);
+        }
+        return String.format(java.util.Locale.US, "%.1f PB", v / 1024.0);
     }
 
     // ------------------------------------------------------------------
@@ -353,8 +530,7 @@ public class MainActivity extends Activity {
             in.close();
             JSONObject o = new JSONObject(sb.toString());
             if (!o.optBoolean("ok")) return null;
-            long free = o.optLong("free", 0);
-            return human(free);
+            return human(o.optLong("free", 0));
         } catch (Exception e) {
             return null;
         } finally {
@@ -362,22 +538,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private static String human(long b) {
-        if (b < 1024) return b + " B";
-        double v = b;
-        for (String u : new String[]{"KB", "MB", "GB", "TB"}) {
-            v /= 1024.0;
-            if (v < 1024) return String.format(java.util.Locale.US, "%.1f %s", v, u);
-        }
-        return String.format(java.util.Locale.US, "%.1f PB", v / 1024.0);
-    }
-
     private void pickFolder() {
-        final String ip = ipInput.getText().toString().trim();
-        if (ip.isEmpty()) {
-            Toast.makeText(this, "Pehle PC ka IP likhein (ya PC chal kar aane dein)", Toast.LENGTH_SHORT).show();
-            return;
-        }
         try {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -400,15 +561,65 @@ public class MainActivity extends Activity {
                         Intent.FLAG_GRANT_READ_URI_PERMISSION);
             } catch (Exception ignore) {
             }
-            String ip = ipInput.getText().toString().trim();
-            Intent i = new Intent(this, TransferService.class);
-            i.setAction(TransferService.ACTION_START);
-            i.putExtra("treeUri", tree.toString());
-            i.putExtra("host", ip);
-            i.putExtra("port", 8765);
-            startService(i);
-            log("Transfer start: " + ip);
+            rootUriStr = tree.toString();
+            rootDocId = DocumentsContract.getTreeDocumentId(tree);
+            rootName = friendlyRoot(rootDocId);
+            childrenCache.clear();
+            nodeByDocId.clear();
+            expanded.clear();
+            checkedFiles.clear();
+            checkedDirs.clear();
+            checkedDirs.add(rootDocId); // default: whole picked folder
+            SafTree.Node rootNode = new SafTree.Node(rootDocId, rootName, "", true, 0);
+            nodeByDocId.put(rootDocId, rootNode);
+            rootLabel.setText("Main folder: " + rootName + "  (pura transfer selected hai)");
+            expanded.add(rootDocId);
+            renderBrowser();
+            log("Main folder: " + rootName);
         }
+    }
+
+    private String friendlyRoot(String docId) {
+        if (docId == null) return "?";
+        if (docId.equals("primary:")) return "Internal Storage";
+        if (docId.startsWith("primary:")) return "Internal Storage/" + docId.substring(8);
+        return docId.endsWith(":") ? docId.substring(0, docId.length() - 1) : docId;
+    }
+
+    private void startTransfer() {
+        final String ip = ipInput.getText().toString().trim();
+        if (ip.isEmpty()) {
+            Toast.makeText(this, "Pehle PC ka IP likhein (ya PC ka server chalne dein)", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (rootUriStr == null) {
+            Toast.makeText(this, "Pehle Main Folder choose karein", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (checkedDirs.isEmpty() && checkedFiles.isEmpty()) {
+            Toast.makeText(this, "Koi folder/file select nahi hui", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        List<String> selDirs = new ArrayList<>();
+        for (String docId : checkedDirs) {
+            SafTree.Node n = nodeByDocId.get(docId);
+            if (n != null) selDirs.add(docId + "\t" + n.rel);
+        }
+        List<String> selFiles = new ArrayList<>();
+        for (String docId : checkedFiles) {
+            SafTree.Node n = nodeByDocId.get(docId);
+            if (n != null) selFiles.add(docId + "\t" + n.rel + "\t" + n.size);
+        }
+        Intent i = new Intent(this, TransferService.class);
+        i.setAction(TransferService.ACTION_START);
+        i.putExtra("treeUri", rootUriStr);
+        i.putExtra("host", ip);
+        i.putExtra("port", 8765);
+        i.putExtra("selDirs", selDirs.toArray(new String[0]));
+        i.putExtra("selFiles", selFiles.toArray(new String[0]));
+        startService(i);
+        log("Transfer start: " + ip + " • " + selDirs.size() + " folders, "
+                + selFiles.size() + " files");
     }
 
     private void requestNotificationsIfNeeded() {

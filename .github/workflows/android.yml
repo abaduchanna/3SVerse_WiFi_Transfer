@@ -25,7 +25,7 @@ jobs:
       # Release assets do NOT count against artifact storage quota
       # (no upload-artifact - same pattern as POS / Studio repos).
       - name: Read version
-        run: echo "VERSION=$(grep -oP 'versionName = \"\K[^\"]+' app/build.gradle.kts)" >> $GITHUB_ENV
+        run: echo "VERSION=$(cat VERSION | tr -d '[:space:]')" >> $GITHUB_ENV
 
       - name: Rename APK for release
         run: |
@@ -44,8 +44,8 @@ jobs:
           body: |
             Local WiFi file transfer - phone to PC. No internet, no cloud.
 
-            - `3SVerse-WiFi-Transfer-PC-*.zip` - PC receiver (run `pc_server.exe`)
-            - `3SVerse-WiFi-Transfer-Android-*.apk` - Android app (side-load)
+            - `3SVerse-WiFi-Transfer-PC-v*.exe` - single-file PC receiver (no install)
+            - `3SVerse-WiFi-Transfer-Android-v*.apk` - Android app (side-load)
 
             Both devices must be on the SAME WiFi router network.
           files: rel/3SVerse-WiFi-Transfer-Android-v${{ env.VERSION }}.apk

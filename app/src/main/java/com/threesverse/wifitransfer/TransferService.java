@@ -13,6 +13,7 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.provider.DocumentsContract;
 
 import org.json.JSONObject;
 
@@ -25,8 +26,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -78,6 +81,8 @@ public class TransferService extends Service {
     private String host;
     private int port;
     private UriHolder holder;
+    private String[] intentDirs;
+    private String[] intentFiles;
 
     private final ArrayDeque<SafTree.Entry> queue = new ArrayDeque<>();
     private final Map<String, Long> manifest = new HashMap<>();
@@ -121,6 +126,8 @@ public class TransferService extends Service {
             holder.treeUri = intent.getStringExtra("treeUri");
             holder.host = intent.getStringExtra("host");
             holder.port = intent.getIntExtra("port", 8765);
+            intentDirs = intent.getStringArrayExtra("selDirs");
+            intentFiles = intent.getStringArrayExtra("selFiles");
             STATE.reset();
             startManager();
         } else if (ACTION_PAUSE.equals(action)) {
@@ -224,15 +231,38 @@ public class TransferService extends Service {
                         + "(Windows Firewall prompt 'Allow' karein)");
             }
 
-            // Phase 2: scan the picked tree
+            // Phase 2: build file list from the user's selection
             STATE.message = "Folders scan ho rahe hain…";
             List<SafTree.Entry> all = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
             final int[] lastScan = {0};
-            SafTree.walk(cr, Uri.parse(holder.treeUri), all,
-                    count -> {
-                        lastScan[0] = count;
-                        STATE.message = "Folders scan ho rahe hain… " + count + " files mile";
-                    });
+            SafTree.ScanProgress cb = count -> {
+                lastScan[0] = count;
+                STATE.message = "Folders scan ho rahe hain… " + count + " files mile";
+            };
+            Uri tree = Uri.parse(holder.treeUri);
+            String[] selDirs = intentDirs;
+            if (selDirs != null) {
+                for (String d : selDirs) {
+                    if (cancelled) return;
+                    String[] p = d.split("\t", 2);
+                    if (p.length < 2) continue;
+                    SafTree.walkSubtree(cr, tree, p[0], p[1], all, seen, cb);
+                }
+            }
+            String[] selFiles = intentFiles;
+            if (selFiles != null) {
+                for (String f : selFiles) {
+                    String[] p = f.split("\t");
+                    if (p.length < 3) continue;
+                    if (!seen.add(p[1])) continue;
+                    try {
+                        Uri docUri = DocumentsContract.buildDocumentUriUsingTree(tree, p[0]);
+                        all.add(new SafTree.Entry(p[1], docUri, Long.parseLong(p[2])));
+                    } catch (Exception ignore) {
+                    }
+                }
+            }
             STATE.filesTotal = all.size();
             long total = 0;
             for (SafTree.Entry e : all) total += e.size;

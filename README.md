@@ -22,13 +22,15 @@ your TP-Link (or any) router at the maximum speed both devices support — typic
 
 ### PC (Windows)
 
-1. Download `3SVerse-WiFi-Transfer-PC-*-standalone.zip` from
-   [Releases](../../releases/latest), extract anywhere.
-2. Run `pc_server.exe`.
+1. Download `3SVerse-WiFi-Transfer-PC-v*.exe` from [Releases](../../releases/latest)
+   - it is a **single file, no installer, no zip** (plain Go binary: clean profile
+   for antivirus / SentinelOne - no self-extraction, no packer behavior).
+2. Double-click `3SVerse-WiFi-Transfer-PC-v*.exe`. A console window opens showing
+   the big **PC Address**, e.g. `192.168.1.5:8765`.
 3. When **Windows Firewall** asks (first run), tick **Private networks** and click
    **Allow access**.
-4. Click **START Server**. The green bar shows the PC address, e.g. `192.168.1.5:8765`.
-   Choose the save folder (default: `Downloads\3SVerse WiFi Transfer`).
+4. Files arrive into `Downloads\3SVerse WiFi Transfer` (change: run
+   `pc_server.exe -dir D:\MyFolder` from a cmd window).
 
 ### Phone (Android 8.0+)
 
