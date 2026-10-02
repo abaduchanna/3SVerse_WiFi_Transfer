@@ -20,7 +20,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - run: gradle assembleDebug
+      - name: Build signed release APK (stable keystore)
+        run: gradle assembleRelease
+        env:
+          XFER_KEYSTORE_B64: ${{ secrets.XFER_KEYSTORE_B64 }}
+          XFER_STORE_PASS: ${{ secrets.XFER_STORE_PASS }}
+          XFER_KEY_PASS: ${{ secrets.XFER_KEY_PASS }}
+          XFER_KEY_ALIAS: ${{ secrets.XFER_KEY_ALIAS }}
 
       # Release assets do NOT count against artifact storage quota
       # (no upload-artifact - same pattern as POS / Studio repos).
@@ -30,7 +36,7 @@ jobs:
       - name: Rename APK for release
         run: |
           mkdir rel
-          cp app/build/outputs/apk/debug/3SVerse_WiFi_Transfer-debug.apk \
+          cp app/build/outputs/apk/release/3SVerse_WiFi_Transfer-release.apk \
              "rel/3SVerse-WiFi-Transfer-Android-v${VERSION}.apk"
           ls -la rel/
 
@@ -48,6 +54,10 @@ jobs:
             - `3SVerse-WiFi-Transfer-Android-v*.apk` - Android app (side-load)
 
             Both devices must be on the SAME WiFi router network.
+
+            **Install tip:** agar purani version installed hai to nayi APK seedha
+            usi par install ho jayegi (same signature). Play Protect warn kare to
+            "More details" > "Install anyway". Android 8.0+ required.
           files: rel/3SVerse-WiFi-Transfer-Android-v${{ env.VERSION }}.apk
           allow_updates: true
           make_latest: true
