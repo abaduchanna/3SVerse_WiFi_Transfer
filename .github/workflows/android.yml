@@ -1,0 +1,53 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - run: gradle assembleDebug
+
+      # Release assets do NOT count against artifact storage quota
+      # (no upload-artifact - same pattern as POS / Studio repos).
+      - name: Read version
+        run: echo "VERSION=$(grep -oP 'versionName = \"\K[^\"]+' app/build.gradle.kts)" >> $GITHUB_ENV
+
+      - name: Rename APK for release
+        run: |
+          mkdir rel
+          cp app/build/outputs/apk/debug/3SVerse_WiFi_Transfer-debug.apk \
+             "rel/3SVerse-WiFi-Transfer-Android-v${VERSION}.apk"
+          ls -la rel/
+
+      - name: Attach APK to release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: xfer-v${{ env.VERSION }}
+          name: 3SVerse WiFi Transfer v${{ env.VERSION }}
+          body: |
+            Local WiFi file transfer - phone to PC. No internet, no cloud.
+
+            - `3SVerse-WiFi-Transfer-PC-*.zip` - PC receiver (run `pc_server.exe`)
+            - `3SVerse-WiFi-Transfer-Android-*.apk` - Android app (side-load)
+
+            Both devices must be on the SAME WiFi router network.
+          files: rel/3SVerse-WiFi-Transfer-Android-v${{ env.VERSION }}.apk
+          allow_updates: true
+          make_latest: true
