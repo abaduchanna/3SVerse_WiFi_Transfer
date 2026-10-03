@@ -311,7 +311,7 @@ public class TransferService extends Service {
         } catch (Exception e) {
             STATE.phase = State.ERROR;
             STATE.error = e.getMessage() == null ? e.toString() : e.getMessage();
-            STATE.message = "Masla: " + STATE.error;
+            STATE.message = "Error: " + STATE.error;
             notify("Transfer error");
         } finally {
             shutdownPool();

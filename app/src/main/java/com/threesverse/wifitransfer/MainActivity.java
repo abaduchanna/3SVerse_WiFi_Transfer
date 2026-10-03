@@ -3,6 +3,7 @@ package com.threesverse.wifitransfer;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -12,9 +13,11 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.DocumentsContract;
+import android.provider.MediaStore;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,14 +36,19 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedInputStream;
+import java.io.File;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -62,7 +70,9 @@ public class MainActivity extends Activity {
 
     private static final int REQ_PICK_FOLDER = 41;
     private static final int REQ_NOTIF = 42;
+    private static final int REQ_WRITE_LEGACY = 43;
     private static final String DISC_MAGIC = "3SVERSE-XFER";
+    private static final String RX_SUBDIR = "3SVerse WiFi Transfer";
 
     private boolean dark;
     private int bg, card, textMain, textSub, accentDark, line, dimText;
@@ -97,6 +107,14 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Deque<String> logLines = new ArrayDeque<>();
     private volatile boolean uiRunning = true;
+
+    // --- PC -> phone receive state ---
+    private TextView rxStatus;
+    private Button receiveBtn;
+    private TextView rxProgress;
+    private volatile boolean receiving = false;
+    private long lastOutboxPoll = 0;
+    private boolean legacyWritePending = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -177,14 +195,14 @@ public class MainActivity extends Activity {
         LinearLayout c1 = cardBox();
         c1.addView(label("PC Connection", 14, true, textMain));
         c1.addView(space(6));
-        foundPc = label("PC dhoond rahe hain… (dono same WiFi par hon)", 12, false, textSub);
+        foundPc = label("Looking for the PC… (both devices on the same WiFi)", 12, false, textSub);
         c1.addView(foundPc);
         c1.addView(space(8));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         ipInput = new EditText(this);
-        ipInput.setHint("PC IP jaise 192.168.1.5");
+        ipInput.setHint("PC IP like 192.168.1.5");
         ipInput.setSingleLine(true);
         ipInput.setTextSize(14);
         ipInput.setTextColor(textMain);
@@ -207,9 +225,27 @@ public class MainActivity extends Activity {
         c1.addView(row);
 
         c1.addView(space(8));
-        status = label("Status: PC ka wait…", 12, false, textSub);
+        status = label("Status: waiting for the PC…", 12, false, textSub);
         c1.addView(status);
         root.addView(c1);
+        root.addView(space(10));
+
+        // --- PC -> phone receive card (two-way transfer) ---
+        LinearLayout c1b = cardBox();
+        c1b.addView(label("PC → Phone", 14, true, textMain));
+        c1b.addView(space(6));
+        rxStatus = label("Queue on the PC: (looking…)", 12, false, textSub);
+        c1b.addView(rxStatus);
+        c1b.addView(space(8));
+        receiveBtn = btn("Receive on Phone");
+        receiveBtn.setEnabled(false);
+        receiveBtn.setOnClickListener(v -> startReceive());
+        c1b.addView(receiveBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        c1b.addView(space(6));
+        rxProgress = label("Files land in Downloads/" + RX_SUBDIR + ".", 12, false, textSub);
+        c1b.addView(rxProgress);
+        root.addView(c1b);
         root.addView(space(10));
 
         // --- source / browser card ---
@@ -241,7 +277,9 @@ public class MainActivity extends Activity {
         c2.addView(space(6));
 
         TextView hint = label("Folder checkbox = the whole folder (all sub-folders). "
-                + "Tap a name to expand/collapse it. A file checkbox selects just that file.", 11, false, textSub);
+                + "Tap a name to expand/collapse it. A file checkbox selects just that file. "
+                + "The first row is the Main Folder itself - untick it to pick individual "
+                + "folders and files instead.", 11, false, textSub);
         c2.addView(hint);
         c2.addView(space(8));
 
@@ -389,7 +427,14 @@ public class MainActivity extends Activity {
             updateSummary();
             return;
         }
-        renderRows(rootDocId, "", 0, false);
+        // The Main Folder itself gets its own checkbox row so "entire storage"
+        // can be unticked - otherwise every child row stays locked and only
+        // one (implicit) selection is possible.
+        SafTree.Node rootNode = nodeByDocId.get(rootDocId);
+        if (rootNode != null) {
+            addRow(rootNode, 0, false);
+        }
+        renderRows(rootDocId, "", 0, checkedDirs.contains(rootDocId));
         updateSummary();
     }
 
@@ -609,6 +654,12 @@ public class MainActivity extends Activity {
     }
 
     private String hello(String ip) {
+        JSONObject o = helloFull(ip);
+        if (o == null) return null;
+        return human(o.optLong("free", 0));
+    }
+
+    private JSONObject helloFull(String ip) {
         HttpURLConnection c = null;
         try {
             URL u = new URL("http://" + ip + ":8765/hello");
@@ -624,12 +675,253 @@ public class MainActivity extends Activity {
             in.close();
             JSONObject o = new JSONObject(sb.toString());
             if (!o.optBoolean("ok")) return null;
-            return human(o.optLong("free", 0));
+            return o;
         } catch (Exception e) {
             return null;
         } finally {
             if (c != null) c.disconnect();
         }
+    }
+
+    // ------------------------------------------------------------------
+    // PC -> phone receive (pull model: the phone stays the HTTP client)
+    // ------------------------------------------------------------------
+
+    private void pollOutboxTick() {
+        if (receiving || rxStatus == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastOutboxPoll < 3500) return;
+        lastOutboxPoll = now;
+        final String ip = ipInput.getText().toString().trim();
+        if (ip.isEmpty()) return;
+        new Thread(() -> {
+            JSONObject o = helloFull(ip);
+            runOnUiThread(() -> {
+                if (o == null) {
+                    rxStatus.setText("PC unreachable - run the PC exe and press Test.");
+                    rxStatus.setTextColor(textSub);
+                    receiveBtn.setEnabled(false);
+                } else {
+                    int nFiles = o.optInt("outbox", 0);
+                    long nBytes = o.optLong("outboxBytes", 0);
+                    if (nFiles > 0) {
+                        rxStatus.setText("PC has " + nFiles + " file(s) (" + human(nBytes)
+                                + ") waiting for this phone.");
+                        rxStatus.setTextColor(accentDark);
+                    } else {
+                        rxStatus.setText("PC is ready. Use the 'Send to phone' card on the PC dashboard.");
+                        rxStatus.setTextColor(textSub);
+                    }
+                    receiveBtn.setEnabled(nFiles > 0 && !receiving);
+                }
+            });
+        }, "outbox-poll").start();
+    }
+
+    private void startReceive() {
+        final String ip = ipInput.getText().toString().trim();
+        if (ip.isEmpty()) {
+            Toast.makeText(this, "Enter the PC IP first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (receiving) return;
+        if (Build.VERSION.SDK_INT <= 28 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            legacyWritePending = true;
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_WRITE_LEGACY);
+            return;
+        }
+        doReceive(ip);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_WRITE_LEGACY && legacyWritePending) {
+            legacyWritePending = false;
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                doReceive(ipInput.getText().toString().trim());
+            } else {
+                Toast.makeText(this, "Storage permission is needed to save the files",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void doReceive(String ip) {
+        receiving = true;
+        receiveBtn.setEnabled(false);
+        rxProgress.setText("Connecting…");
+        new Thread(() -> {
+            int ok = 0, failed = 0;
+            try {
+                JSONObject list = getJson("http://" + ip + ":8765/outbox/list");
+                JSONArray files = list == null ? null : list.optJSONArray("files");
+                if (files == null) throw new Exception("Could not read the PC queue");
+                int total = files.length();
+                for (int i = 0; i < total; i++) {
+                    JSONObject f = files.optJSONObject(i);
+                    if (f == null) continue;
+                    String name = f.optString("name", "file_" + i);
+                    final int idx = i + 1, idxTotal = total;
+                    runOnUiThread(() -> rxProgress.setText("Receiving " + idx + "/" + idxTotal + ": " + name));
+                    try {
+                        downloadToDownloads(ip, name);
+                        ok++;
+                    } catch (Exception e) {
+                        failed++;
+                    }
+                }
+                final int okF = ok, failF = failed;
+                runOnUiThread(() -> {
+                    rxProgress.setText(okF + " file(s) received"
+                            + (failF > 0 ? ", " + failF + " failed" : "")
+                            + "  →  Downloads/" + RX_SUBDIR);
+                    log("PC → phone: " + okF + " received"
+                            + (failF > 0 ? ", " + failF + " failed" : ""));
+                    receiving = false;
+                    receiveBtn.setEnabled(true);
+                });
+            } catch (Exception e) {
+                final String msg = e.getMessage() == null ? e.toString() : e.getMessage();
+                runOnUiThread(() -> {
+                    rxProgress.setText("Receive failed: " + msg);
+                    receiving = false;
+                    receiveBtn.setEnabled(true);
+                });
+            }
+        }, "receive").start();
+    }
+
+    private JSONObject getJson(String urlStr) {
+        HttpURLConnection c = null;
+        try {
+            URL u = new URL(urlStr);
+            c = (HttpURLConnection) u.openConnection();
+            c.setConnectTimeout(6000);
+            c.setReadTimeout(15000);
+            if (c.getResponseCode() != 200) return null;
+            InputStream in = c.getInputStream();
+            StringBuilder sb = new StringBuilder();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) sb.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+            in.close();
+            return new JSONObject(sb.toString());
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private void downloadToDownloads(String ip, String name) throws Exception {
+        String enc = URLEncoder.encode(name, StandardCharsets.UTF_8.name());
+        URL u = new URL("http://" + ip + ":8765/outbox/file?name=" + enc);
+        HttpURLConnection c = (HttpURLConnection) u.openConnection();
+        try {
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(60000);
+            int code = c.getResponseCode();
+            if (code != 200) throw new Exception("HTTP " + code);
+            InputStream in = new BufferedInputStream(c.getInputStream(), 1 << 16);
+            try {
+                if (Build.VERSION.SDK_INT >= 29) {
+                    saveViaMediaStore(name, in);
+                } else {
+                    saveLegacy(name, in);
+                }
+            } finally {
+                try { in.close(); } catch (Exception ignore) { }
+            }
+        } finally {
+            c.disconnect();
+        }
+    }
+
+    private void saveViaMediaStore(String name, InputStream in) throws Exception {
+        ContentResolver cr = getContentResolver();
+        ContentValues cv = new ContentValues();
+        cv.put(MediaStore.MediaColumns.DISPLAY_NAME, sanitizeFileName(name));
+        cv.put(MediaStore.MediaColumns.MIME_TYPE, guessMime(name));
+        cv.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/" + RX_SUBDIR);
+        cv.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+        if (uri == null) throw new Exception("Could not create the download entry");
+        OutputStream out = null;
+        try {
+            out = cr.openOutputStream(uri);
+            if (out == null) throw new Exception("Could not open the download stream");
+            copyStream(in, out);
+            out.close();
+            out = null;
+            ContentValues done = new ContentValues();
+            done.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            cr.update(uri, done, null, null);
+        } catch (Exception e) {
+            cr.delete(uri, null, null); // no half files
+            throw e;
+        } finally {
+            if (out != null) {
+                try { out.close(); } catch (Exception ignore) { }
+            }
+        }
+    }
+
+    private void saveLegacy(String name, InputStream in) throws Exception {
+        File dir = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS), RX_SUBDIR);
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new Exception("Could not create " + dir);
+        }
+        File dst = new File(dir, sanitizeFileName(name));
+        int k = 1;
+        while (dst.exists()) {
+            String base = sanitizeFileName(name);
+            int dot = base.lastIndexOf('.');
+            String stem = dot > 0 ? base.substring(0, dot) : base;
+            String ext = dot > 0 ? base.substring(dot) : "";
+            dst = new File(dir, stem + " (" + k + ")" + ext);
+            k++;
+        }
+        OutputStream out = new java.io.FileOutputStream(dst);
+        try {
+            copyStream(in, out);
+        } finally {
+            out.close();
+        }
+    }
+
+    private static void copyStream(InputStream in, OutputStream out) throws Exception {
+        byte[] buf = new byte[1 << 20];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+    }
+
+    private static String sanitizeFileName(String name) {
+        String flat = name.replace('\\', '_').replace('/', '_').replace(':', '_');
+        for (String ch : new String[]{"<", ">", "\"", "|", "?", "*"}) {
+            flat = flat.replace(ch, "_");
+        }
+        return flat.trim().isEmpty() ? "file" : flat.trim();
+    }
+
+    private static String guessMime(String name) {
+        String lower = name.toLowerCase();
+        String[][] map = {
+            {".jpg", "image/jpeg"}, {".jpeg", "image/jpeg"}, {".png", "image/png"},
+            {".gif", "image/gif"}, {".webp", "image/webp"}, {".mp4", "video/mp4"},
+            {".mp3", "audio/mpeg"}, {".wav", "audio/wav"}, {".pdf", "application/pdf"},
+            {".zip", "application/zip"}, {".txt", "text/plain"}, {".csv", "text/csv"},
+            {".apk", "application/vnd.android.package-archive"},
+            {".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+            {".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+        };
+        for (String[] m : map) {
+            if (lower.endsWith(m[0])) return m[1];
+        }
+        return "application/octet-stream";
     }
 
     private void pickFolder() {
@@ -772,6 +1064,7 @@ public class MainActivity extends Activity {
                 }
                 startBtn.setEnabled(s.phase != TransferService.State.TRANSFERRING
                         && s.phase != TransferService.State.SCANNING);
+                pollOutboxTick();
                 ui.postDelayed(this, 500);
             }
         }, 500);

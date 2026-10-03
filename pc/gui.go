@@ -12,13 +12,15 @@ package main
 // Everything is embedded in the exe - the page works fully offline.
 
 import (
-        _ "embed"
-        "encoding/json"
-        "fmt"
-        "net/http"
-        "os/exec"
-        "runtime"
-        "time"
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"time"
 )
 
 //go:embed assets/logo.png
@@ -36,67 +38,90 @@ var faviconICO []byte
 var startedAt = time.Now()
 
 func (sv *Server) serveGUI(w http.ResponseWriter, _ *http.Request) {
-        w.Header().Set("Content-Type", "text/html; charset=utf-8")
-        _, _ = w.Write([]byte(guiHTML))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(guiHTML))
 }
 
 func serveBytes(w http.ResponseWriter, ctype string, b []byte) {
-        w.Header().Set("Content-Type", ctype)
-        w.Header().Set("Cache-Control", "max-age=3600")
-        _, _ = w.Write(b)
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Cache-Control", "max-age=3600")
+	_, _ = w.Write(b)
 }
 
 // serveStats - live numbers for the dashboard (polled once a second).
 func (sv *Server) serveStats(w http.ResponseWriter, _ *http.Request) {
-        sv.st.mu.Lock()
-        files, bytes, speed := sv.st.filesDone, sv.st.bytesDone, sv.st.speed
-        sv.st.mu.Unlock()
-        var free uint64 = 0
-        if us, err := diskUsage(sv.root); err == nil {
-                free = us.Free
-        }
-        body, _ := json.Marshal(map[string]interface{}{
-                "ok": true, "files": files, "bytes": bytes, "speed": speed,
-                "free": free, "version": version, "dir": sv.root,
-                "ip": lanIP(), "port": port, "uptime": int(time.Since(startedAt).Seconds()),
-        })
-        w.Header().Set("Content-Type", "application/json")
-        _, _ = w.Write(body)
+	sv.st.mu.Lock()
+	files, bytes, speed := sv.st.filesDone, sv.st.bytesDone, sv.st.speed
+	sv.st.mu.Unlock()
+	var free uint64 = 0
+	if us, err := diskUsage(sv.root); err == nil {
+		free = us.Free
+	}
+	oc, ob := sv.outboxStats()
+	body, _ := json.Marshal(map[string]interface{}{
+		"ok": true, "files": files, "bytes": bytes, "speed": speed,
+		"free": free, "version": version, "dir": sv.root,
+		"ip": lanIP(), "port": port, "uptime": int(time.Since(startedAt).Seconds()),
+		"outbox": oc, "outboxBytes": ob,
+	})
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(body)
 }
 
 // openFolder - POST: reveal the save folder in Explorer / Finder.
 func (sv *Server) openFolder(w http.ResponseWriter, _ *http.Request) {
-        var err error
-        switch runtime.GOOS {
-        case "windows":
-                err = exec.Command("explorer", sv.root).Start()
-        case "darwin":
-                err = exec.Command("open", sv.root).Start()
-        default:
-                err = exec.Command("xdg-open", sv.root).Start()
-        }
-        if err != nil {
-                sv.writeJSONCode(w, http.StatusInternalServerError,
-                        map[string]interface{}{"ok": false, "error": err.Error()})
-                return
-        }
-        sv.writeJSON(w, map[string]interface{}{"ok": true})
+	var err error
+	switch runtime.GOOS {
+	case "windows":
+		err = exec.Command("explorer", sv.root).Start()
+	case "darwin":
+		err = exec.Command("open", sv.root).Start()
+	default:
+		err = exec.Command("xdg-open", sv.root).Start()
+	}
+	if err != nil {
+		sv.writeJSONCode(w, http.StatusInternalServerError,
+			map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	sv.writeJSON(w, map[string]interface{}{"ok": true})
 }
 
-// openBrowser - launch the default browser on the dashboard URL.
+// openBrowser - open the dashboard like a desktop app: Edge/Chrome app-mode
+// window first (chromeless, taskbar icon, no tabs), then the default browser.
 func openBrowser(url string) {
-        var err error
-        switch runtime.GOOS {
-        case "windows":
-                err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
-        case "darwin":
-                err = exec.Command("open", url).Start()
-        default:
-                err = exec.Command("xdg-open", url).Start()
-        }
-        if err != nil {
-                fmt.Println("(open the dashboard manually at " + url + ")")
-        }
+	if runtime.GOOS == "windows" {
+		candidates := []string{}
+		for _, env := range []string{"ProgramFiles(x86)", "ProgramFiles", "LocalAppData"} {
+			root := os.Getenv(env)
+			if root == "" {
+				continue
+			}
+			candidates = append(candidates,
+				filepath.Join(root, `Microsoft\Edge\Application\msedge.exe`),
+				filepath.Join(root, `Google\Chrome\Application\chrome.exe`))
+		}
+		for _, exe := range candidates {
+			if _, err := os.Stat(exe); err != nil {
+				continue
+			}
+			if exec.Command(exe, "--app="+url, "--window-size=1180,820").Start() == nil {
+				return
+			}
+		}
+		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		return
+	}
+	var err error
+	switch runtime.GOOS {
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = exec.Command("xdg-open", url).Start()
+	}
+	if err != nil {
+		fmt.Println("(open the dashboard manually at " + url + ")")
+	}
 }
 
 const guiHTML = `<!DOCTYPE html>
@@ -175,6 +200,21 @@ footer{position:relative;text-align:center;font-size:9px;letter-spacing:.2em;col
 </div>
 <div class="hint">Files land here from the phone app. To use a different folder, restart the receiver with <span class="mono">-dir D:\MyFolder</span>. The dashboard URL is <span class="mono" id="s-url">&hellip;</span> (any browser on this WiFi can open it).</div>
 </div>
+<div class="card">
+<div class="k" style="font-size:8.5px;letter-spacing:.16em;color:#9b97b3;text-transform:uppercase;margin-bottom:10px">Send to phone (PC &rarr; phone)</div>
+<div class="row">
+<button class="btn btn-primary" onclick="document.getElementById('pick-files').click()">Add files</button>
+<button class="btn btn-ghost" onclick="document.getElementById('pick-folder').click()">Add folder</button>
+<input type="file" id="pick-files" multiple style="display:none">
+<input type="file" id="pick-folder" webkitdirectory style="display:none">
+</div>
+<div class="hint" id="send-status">Queued files wait here and are pulled into the phone's Downloads/3SVerse WiFi Transfer folder from the phone app (PC &rarr; Phone card). Sub-folders keep their structure.</div>
+<div class="path mono" id="outbox-list" style="margin-top:9px;display:none;white-space:pre-wrap"></div>
+<div class="row" style="margin-top:9px">
+<button class="btn btn-ghost" onclick="clearOutbox()">Clear queue</button>
+<span class="hint" id="outbox-summary" style="align-self:center"></span>
+</div>
+</div>
 <div class="card logwrap">
 <h2>RECEIVE LOG</h2>
 <div id="log">Waiting for the phone app on the same WiFi&hellip;</div>
@@ -205,6 +245,37 @@ else if(!idle&&lastFiles>=0&&s.files==lastFiles&&s.bytes==lastBytes){/*quiet*/}
 lastFiles=s.files;lastBytes=s.bytes;
 }).catch(function(){})}
 function openFolder(){fetch('/open-folder',{method:'POST'})}
+function clearOutbox(){fetch('/outbox/clear',{method:'POST'}).then(function(){pollOutbox(true)})}
+var lastOutboxCount=-1,sending=false;
+function relName(file){return (file.webkitRelativePath&&file.webkitRelativePath!=='')?file.webkitRelativePath:file.name}
+function queueFile(file,done){
+fetch('/outbox?name='+encodeURIComponent(relName(file)),{method:'POST',body:file})
+.then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.error||'queue failed');done(null,j)}).catch(function(e){done(e)})}
+function queueAll(input){
+var fs=Array.prototype.slice.call(input.files||[]);input.value='';
+if(!fs.length)return;sending=true;
+var i=0,failed=0;
+function step(){
+if(i>=fs.length){sending=false;
+document.getElementById('send-status').textContent='Queued '+(fs.length-failed)+' of '+fs.length+' file(s) for the phone.';
+pollOutbox(true);return}
+document.getElementById('send-status').textContent='Queueing '+(i+1)+' / '+fs.length+': '+relName(fs[i]);
+queueFile(fs[i],function(err){if(err)failed++;i++;step()})}
+step()}
+document.getElementById('pick-files').addEventListener('change',function(){queueAll(this)});
+document.getElementById('pick-folder').addEventListener('change',function(){queueAll(this)});
+function pollOutbox(force){
+fetch('/outbox/list').then(function(r){return r.json()}).then(function(j){
+if(!j.ok)return;var fs=j.files||[];
+if(!force&&fs.length===lastOutboxCount)return;lastOutboxCount=fs.length;
+var box=document.getElementById('outbox-list');
+document.getElementById('outbox-summary').textContent=fs.length? (fs.length+' file(s) waiting for the phone'):'Queue is empty - the phone app pulls these automatically.';
+if(!fs.length){box.style.display='none';box.textContent='';return}
+box.style.display='block';
+var lines=[];for(var i=0;i<fs.length&&i<12;i++){lines.push(fs[i].name+'  ('+human(fs[i].size)+')')}
+if(fs.length>12)lines.push('... and '+(fs.length-12)+' more');
+box.textContent=lines.join('\n')})}
+setInterval(pollOutbox,2000);pollOutbox(true);
 setInterval(poll,1000);poll();
 </script>
 </body></html>`
