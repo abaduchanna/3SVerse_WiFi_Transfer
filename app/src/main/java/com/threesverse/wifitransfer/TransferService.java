@@ -39,10 +39,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * Foreground service that streams a picked SAF folder to the PC receiver
  * over the local WiFi network.
  *
- * Speed: 3 parallel file streams + 1 MB buffers (multiple TCP flows fill
- * WiFi much better than one). Reliability: foreground service + wake locks
- * keep Android from killing long (128 GB class) transfers, per-file retry,
- * and a size-based manifest lets a new run skip everything already on the PC.
+ * Speed: 6 parallel keep-alive file streams + 2 MB buffers (multiple TCP
+ * flows fill lossy/high-latency WiFi much better than one, and reusing
+ * connections removes per-file handshake overhead). Reliability: foreground
+ * service + wake locks keep Android from killing long (128 GB class)
+ * transfers, per-file retry, and a size-based manifest lets a new run skip
+ * everything already on the PC.
  */
 public class TransferService extends Service {
 
@@ -53,9 +55,9 @@ public class TransferService extends Service {
 
     private static final String CHANNEL_ID = "transfer";
     private static final int NOTIF_ID = 1001;
-    private static final int WORKERS = 3;
+    private static final int WORKERS = 6;
     private static final int RETRIES = 3;
-    private static final int BUF = 1 << 20; // 1 MB
+    private static final int BUF = 2 << 20; // 2 MB
 
     /** Live transfer state polled by MainActivity (500 ms). */
     public static final class State {
@@ -106,6 +108,9 @@ public class TransferService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        // HttpURLConnection pools keep-alive connections per host; raise the
+        // default pool cap (5) so all parallel workers can reuse connections.
+        System.setProperty("http.maxConnections", String.valueOf(WORKERS + 2));
         notifMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         NotificationChannel ch = new NotificationChannel(CHANNEL_ID,
                 "WiFi Transfer", NotificationManager.IMPORTANCE_LOW);
@@ -367,7 +372,6 @@ public class TransferService extends Service {
             }
 
             inFlight.incrementAndGet();
-            inflightBytes.set(0);
             STATE.currentFile = e.relPath;
             STATE.currentSize = e.size;
             STATE.currentBytes = 0;
@@ -404,7 +408,10 @@ public class TransferService extends Service {
         long dt = now - lastSpeedT;
         if (dt >= 800) {
             long db = currentBytesApprox() - lastSpeedB;
-            STATE.bytesPerSec = (long) (db * 1000.0 / dt);
+            // Keep-alive workers subtract their bytes when a file finishes,
+            // so a short negative dip between "file done" and "bytesDone
+            // update" is normal - never show it as negative speed.
+            STATE.bytesPerSec = Math.max(0, (long) (db * 1000.0 / dt));
         }
     }
 
@@ -473,15 +480,18 @@ public class TransferService extends Service {
                 while ((n = in.read(buf)) > 0) {
                     out.write(buf, 0, n);
                     sent += n;
-                    inflightBytes.set(sent);
+                    inflightBytes.addAndGet(n); // per-worker delta, not absolute
                     STATE.currentBytes = sent;
                 }
             } finally {
                 try { in.close(); } catch (Exception ignore) { }
+                // Give the bytes this attempt pushed back to the pool counter
+                // (bytesDone takes over on success, retry restarts at zero).
+                if (sent > 0) inflightBytes.addAndGet(-sent);
             }
             int code = c.getResponseCode();
             if (code != 200) throw new Exception("HTTP " + code);
-            // consume response so the connection returns to the pool
+            // consume response so the keep-alive connection returns to the pool
             InputStream rs = code < 400 ? c.getInputStream() : c.getErrorStream();
             if (rs != null) {
                 byte[] sink = new byte[4096];
@@ -489,7 +499,8 @@ public class TransferService extends Service {
                 rs.close();
             }
         } finally {
-            c.disconnect();
+            // No disconnect(): returning the connection to the pool lets the
+            // next file reuse it (new TCP+HTTP handshake per file otherwise).
         }
     }
 

@@ -64,6 +64,24 @@ public final class SafTree {
         void onScan(int filesFound);
     }
 
+    /**
+     * System junk directories that never contain user media - skipping them
+     * saves scan time, thousands of pointless requests (MIUI gallery
+     * ".deleteRecord" churn is thousands of 0-byte records), and keeps the
+     * PC log clean. Case-sensitive: a user folder called "Trash" still ships.
+     */
+    private static final Set<String> JUNK_DIRS = new HashSet<>(java.util.Arrays.asList(
+            ".deleteRecord",          // MIUI gallery records
+            ".thumbnails", ".thumbnail", // DCIM thumbnails
+            ".trash", ".RecycleBin",   // file-manager recycle bins
+            ".lost+found",             // fsck
+            ".cache"                   // app cache residue
+    ));
+
+    private static boolean isJunkDir(String name) {
+        return JUNK_DIRS.contains(name);
+    }
+
     // ------------------------------------------------------------------
     // Browser: list one directory level
     // ------------------------------------------------------------------
@@ -151,7 +169,9 @@ public final class SafTree {
                     }
                     String childRel = cur[1].isEmpty() ? name : cur[1] + "/" + name;
                     if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
-                        stack.push(new String[]{docId, childRel});
+                        if (!isJunkDir(name)) {
+                            stack.push(new String[]{docId, childRel});
+                        }
                     } else {
                         if (seen != null && !seen.add(childRel)) continue;
                         Uri docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId);
