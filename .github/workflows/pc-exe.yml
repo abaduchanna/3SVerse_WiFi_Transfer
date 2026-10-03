@@ -36,8 +36,11 @@ jobs:
         working-directory: pc
         run: |
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-            go build -trimpath -ldflags "-s -w" \
+            go build -trimpath -ldflags "-s -w -H=windowsgui" \
             -o "../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe" .
+          # Guard: PE subsystem MUST be 2 (GUI). Without -H=windowsgui Go
+          # builds a console app and a black CLI window opens next to the UI.
+          python3 -c "import struct,os; f='../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe'; d=open(f,'rb').read(); pe=struct.unpack_from('<I',d,0x3C)[0]; sub=struct.unpack_from('<H',d,pe+0x5C)[0]; print('PE subsystem:',sub,'(2=GUI,3=console)'); assert sub==2, 'exe is still a CONSOLE app'"
           file "../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe" || true
           ls -la ..
 
