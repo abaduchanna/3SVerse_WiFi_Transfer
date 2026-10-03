@@ -640,23 +640,23 @@ public class MainActivity extends Activity {
         }
         status.setText("Status: testing…");
         new Thread(() -> {
-            String res = hello(ip);
+            JSONObject o = helloFull(ip);
             runOnUiThread(() -> {
-                if (res == null) {
-                    status.setText("Status: PC unreachable. Same WiFi? Firewall allowed? Correct IP?");
+                if (o == null) {
+                    status.setText("Status: PC unreachable - run the PC app (v1.3+) on the "
+                            + "same WiFi and click 'Yes' on the Windows firewall prompt.");
+                    status.setTextColor(Color.rgb(220, 60, 60));
+                } else if (o.optString("version", "").isEmpty()) {
+                    status.setText("Status: PC app is outdated - download the new PC exe "
+                            + "(v1.3+) from GitHub and run it on the PC.");
                     status.setTextColor(Color.rgb(220, 60, 60));
                 } else {
-                    status.setText("Status: PC READY (" + res + " free space)");
+                    status.setText("Status: PC READY (v" + o.optString("version")
+                            + " \u00b7 " + human(o.optLong("free", 0)) + " free)");
                     status.setTextColor(accentDark);
                 }
             });
         }, "hello").start();
-    }
-
-    private String hello(String ip) {
-        JSONObject o = helloFull(ip);
-        if (o == null) return null;
-        return human(o.optLong("free", 0));
     }
 
     private JSONObject helloFull(String ip) {
@@ -698,7 +698,13 @@ public class MainActivity extends Activity {
             JSONObject o = helloFull(ip);
             runOnUiThread(() -> {
                 if (o == null) {
-                    rxStatus.setText("PC unreachable - run the PC exe and press Test.");
+                    rxStatus.setText("PC unreachable - run the PC app (v1.3+) on the PC "
+                            + "and allow the firewall prompt.");
+                    rxStatus.setTextColor(textSub);
+                    receiveBtn.setEnabled(false);
+                } else if (o.optString("version", "").isEmpty()) {
+                    rxStatus.setText("PC app is outdated - download the new PC exe (v1.3+) "
+                            + "from GitHub and run it on the PC.");
                     rxStatus.setTextColor(textSub);
                     receiveBtn.setEnabled(false);
                 } else {
@@ -1003,9 +1009,23 @@ public class MainActivity extends Activity {
         i.putExtra("port", 8765);
         i.putExtra("selDirs", selDirs.toArray(new String[0]));
         i.putExtra("selFiles", selFiles.toArray(new String[0]));
-        startService(i);
+        // Clear any stale error/progress from a previous run BEFORE starting the
+        // service, so the Progress card never shows an old failure (e.g. a
+        // leftover "Could not reach PC address null:0") for the new attempt.
+        TransferService.STATE.reset();
+        TransferService.STATE.phase = TransferService.State.SCANNING;
+        TransferService.STATE.message = "Connecting to the PC…";
         log("Transfer start: " + ip + " • " + selDirs.size() + " folders, "
                 + selFiles.size() + " files");
+        try {
+            startService(i);
+        } catch (Exception ex) {
+            TransferService.STATE.phase = TransferService.State.ERROR;
+            TransferService.STATE.error = "Could not start the transfer service ("
+                    + ex.getClass().getSimpleName() + "). Reopen the app and try again.";
+            TransferService.STATE.message = "Error: " + TransferService.STATE.error;
+            log("Error: " + TransferService.STATE.error);
+        }
     }
 
     private void requestNotificationsIfNeeded() {

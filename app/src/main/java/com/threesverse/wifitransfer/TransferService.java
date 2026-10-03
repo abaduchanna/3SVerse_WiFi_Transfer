@@ -129,6 +129,17 @@ public class TransferService extends Service {
             intentDirs = intent.getStringArrayExtra("selDirs");
             intentFiles = intent.getStringArrayExtra("selFiles");
             STATE.reset();
+            // Guard: a broken intent (missing host/port) must never surface as
+            // a confusing "Could not reach PC address null:0" network error.
+            if (holder.host == null || holder.host.trim().isEmpty() || holder.port <= 0) {
+                STATE.phase = State.ERROR;
+                STATE.error = "Internal error: PC address was not passed to the transfer. "
+                        + "Please fully close the app, reopen it, and press Start Transfer again.";
+                STATE.message = "Error: " + STATE.error;
+                notify("Transfer error");
+                stopForegroundService();
+                return START_NOT_STICKY;
+            }
             startManager();
         } else if (ACTION_PAUSE.equals(action)) {
             paused = true;
@@ -226,9 +237,9 @@ public class TransferService extends Service {
             STATE.message = "Connecting to the PC…";
             JSONObject hello = httpGetJson("/hello");
             if (hello == null || !hello.optBoolean("ok")) {
-                throw new Exception("Could not reach PC address " + host + ":" + port
-                        + ". Is the PC server running and both devices on the same WiFi? "
-                        + "(Allow the Windows Firewall prompt)");
+                throw new Exception("PC unreachable at " + holder.host + ":" + holder.port
+                        + ". Run the PC app (v1.3 or newer) on the same WiFi and click "
+                        + "'Yes' on the Windows firewall prompt, then press Test first.");
             }
 
             // Phase 2: build file list from the user's selection
