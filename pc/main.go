@@ -47,7 +47,7 @@ const (
         port      = 8765
         discPort  = 8766
         discMagic = "3SVERSE-XFER"
-        version   = "1.3.2"
+        version   = "1.3.3"
 )
 
 var driveRe = regexp.MustCompile(`^[A-Za-z]:`)
@@ -500,7 +500,14 @@ func main() {
         if !noOpen {
                 go func() {
                         time.Sleep(700 * time.Millisecond)
-                        if forceBrowser || !openAppWindow(dash) {
+                        if forceBrowser {
+                                openBrowser(dash)
+                                return
+                        }
+                        if !openAppWindow(dash) {
+                                fmt.Println("\nNative window unavailable - opening the")
+                                fmt.Println("  dashboard in your browser instead.")
+                                fmt.Println("  (Tip: run with -browser to skip the native window.)")
                                 openBrowser(dash) // Edge/Chrome app-mode window, then default browser
                                 return
                         }

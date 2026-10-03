@@ -15,8 +15,10 @@ import (
         "os"
         "path/filepath"
         "runtime"
+        "unsafe"
 
         "github.com/jchv/go-webview2"
+        "golang.org/x/sys/windows"
         "golang.org/x/sys/windows/registry"
 )
 
@@ -45,18 +47,31 @@ func webView2RuntimeAvailable() bool {
 // WebView2 runtime. The library's default is AppData\Roaming\<exe-name>,
 // which breaks when the exe is run from a different/elevated account (the
 // runtime then shows "Microsoft Edge can't read and write to its data
-// directory" and the window stays white). A fixed folder under
-// LOCALAPPDATA that WE create first works in every case, and reuses the
-// same dir the firewall marker already lives in.
+// directory" and the window stays white).
+//
+// We go one step further than just creating the folder: the runtime's own
+// EBWebView subfolder is pre-created and a real write test is performed
+// inside it. If ANY step fails (locked-down profile, AV policy, permissions),
+// we return false and the caller falls back to a browser - no dialog, no
+// blank window.
 func webView2DataDir() (string, bool) {
         base := os.Getenv("LOCALAPPDATA")
         if base == "" {
                 base = os.TempDir()
         }
         dir := filepath.Join(base, "3SVerseWiFiTransfer", "WebView2")
-        if err := os.MkdirAll(dir, 0o755); err != nil {
+        eb := filepath.Join(dir, "EBWebView")
+        if err := os.MkdirAll(eb, 0o755); err != nil {
                 return "", false
         }
+        // real write test inside the folder the runtime will actually use
+        probe := filepath.Join(eb, ".write_test")
+        if err := os.WriteFile(probe, []byte("ok"), 0o644); err != nil {
+                return "", false
+        }
+        _ = os.Remove(probe)
+        // official runtime also honors this env var as the default data folder
+        _ = os.Setenv("WEBVIEW2_USER_DATA_FOLDER", dir)
         return dir, true
 }
 
@@ -87,9 +102,25 @@ func openAppWindow(url string) bool {
                 },
         })
         if w == nil {
+                closeOrphanWebView() // kill the blank white host window
                 return false
         }
         w.Navigate(url)
         w.Run()
         return true
+}
+
+// closeOrphanWebView closes the WebView2 host window the library leaves
+// behind when environment/embed creation fails (it creates + SHOWS the
+// Win32 window first, then returns false on Embed failure without
+// destroying it - which used to leave a blank white window on screen).
+func closeOrphanWebView() {
+        user32 := windows.NewLazySystemDLL("user32.dll")
+        find := user32.NewProc("FindWindowW")
+        post := user32.NewProc("PostMessageW")
+        cls, _ := windows.UTF16PtrFromString("webview") // jchv's host window class
+        hwnd, _, _ := find.Call(uintptr(unsafe.Pointer(cls)), 0)
+        if hwnd != 0 {
+                post.Call(hwnd, 0x0010 /*WM_CLOSE*/, 0, 0)
+        }
 }

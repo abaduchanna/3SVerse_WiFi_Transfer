@@ -79,6 +79,7 @@ the notification keeps the progress.
 | --- | --- |
 | "PC found…" never appears | Both devices on the same router band? Some routers isolate WiFi clients (AP isolation) — disable it, or type the PC IP manually. |
 | Test fails / "PC unreachable" | The exe adds the firewall rules itself on first run (one UAC prompt). If it could not: run it once as Administrator, or add inbound rules TCP 8765 + UDP 8766 for private networks in Windows Firewall. |
+| Blank white window / "can't read and write to its data directory" | **Run the exe normally (double-click) — do NOT use "Run as administrator".** The firewall prompt already handles admin rights itself. If the native window still fails, the dashboard opens in your browser instead (or start it with `-browser`). |
 | Transfer stops at night | Battery optimization killed the service — set battery to Unrestricted (see above). The next Start resumes where it left off. |
 | Duplicate folders | If you renamed the PC save folder between runs, the manifest starts empty — point it back to the original folder to get resume. |
 

@@ -170,8 +170,10 @@ public class MainActivity extends Activity {
         root.setPadding(dp(16), dp(12), dp(16), dp(16));
 
         // Stacked brand header (Studio pattern): logo / headline / sub-heading
+        // Wide monogram wordmark (transparent, ~1.9:1) - the square tile read
+        // as a narrow little box in the header.
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logo);
+        logo.setImageResource(R.drawable.logo_header);
         logo.setAdjustViewBounds(true);
         logo.setMaxHeight(dp(56));
         LinearLayout.LayoutParams lp0 = new LinearLayout.LayoutParams(
