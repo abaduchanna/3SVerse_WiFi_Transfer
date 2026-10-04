@@ -37,11 +37,11 @@ jobs:
         run: |
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
             go build -trimpath -ldflags "-s -w -H=windowsgui" \
-            -o "../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe" .
+            -o "../3SVerse-WiFi-Transfer-PC.exe" .
           # Guard: PE subsystem MUST be 2 (GUI). Without -H=windowsgui Go
           # builds a console app and a black CLI window opens next to the UI.
-          python3 -c "import struct,os; f='../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe'; d=open(f,'rb').read(); pe=struct.unpack_from('<I',d,0x3C)[0]; sub=struct.unpack_from('<H',d,pe+0x5C)[0]; print('PE subsystem:',sub,'(2=GUI,3=console)'); assert sub==2, 'exe is still a CONSOLE app'"
-          file "../3SVerse-WiFi-Transfer-PC-v${VERSION}.exe" || true
+          python3 -c "import struct,os; f='../3SVerse-WiFi-Transfer-PC.exe'; d=open(f,'rb').read(); pe=struct.unpack_from('<I',d,0x3C)[0]; sub=struct.unpack_from('<H',d,pe+0x5C)[0]; print('PE subsystem:',sub,'(2=GUI,3=console)'); assert sub==2, 'exe is still a CONSOLE app'"
+          file "../3SVerse-WiFi-Transfer-PC.exe" || true
           ls -la ..
 
       - name: Smoke test (linux build serves /hello)
@@ -64,10 +64,10 @@ jobs:
           body: |
             Local WiFi file transfer - phone to PC. No internet, no cloud.
 
-            - `3SVerse-WiFi-Transfer-PC-v*.exe` - single-file PC receiver (no install). Run it and the Studio-branded dashboard opens in your browser.
-            - `3SVerse-WiFi-Transfer-Android-v*.apk` - Android app (side-load)
+            - `3SVerse-WiFi-Transfer-PC.exe` - single-file PC receiver (no install). Run it and the Studio-branded dashboard opens in your browser.
+            - `3SVerse-WiFi-Transfer-Android.apk` - Android app (side-load)
 
             Both devices must be on the SAME WiFi router network.
-          files: 3SVerse-WiFi-Transfer-PC-v${{ env.VERSION }}.exe
+          files: 3SVerse-WiFi-Transfer-PC.exe
           allow_updates: true
           make_latest: true

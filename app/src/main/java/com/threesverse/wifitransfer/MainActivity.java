@@ -347,6 +347,14 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(140)));
         root.addView(c4);
 
+        // Fixed brand footer: it remains visible at the bottom while the
+        // transfer controls scroll independently above it.
+        TextView footer = label("DEVELOPED BY WWW.3SVERSE.COM", 9, true,
+                dark ? Color.rgb(199, 203, 224) : Color.rgb(245, 241, 230));
+        footer.setGravity(Gravity.CENTER);
+        footer.setLetterSpacing(0.12f);
+        footer.setBackgroundColor(Color.rgb(13, 12, 20));
+
         // Animated brand background (Studio): the 3sverse.com hero ring +
         // glossy orb behind the content, at the site's exact speeds
         // (ring 120s/turn + 16px/12s float, orb 140s/turn + 12px/13s float).
@@ -400,8 +408,13 @@ public class MainActivity extends Activity {
         FrameLayout rootFrame = new FrameLayout(this);
         rootFrame.addView(bgLayer, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        rootFrame.addView(outer, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        FrameLayout.LayoutParams outerParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        outerParams.bottomMargin = dp(32);
+        rootFrame.addView(outer, outerParams);
+        FrameLayout.LayoutParams footerParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(32), Gravity.BOTTOM);
+        rootFrame.addView(footer, footerParams);
         setContentView(rootFrame);
     }
 

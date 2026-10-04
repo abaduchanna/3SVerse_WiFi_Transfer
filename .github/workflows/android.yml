@@ -37,7 +37,7 @@ jobs:
         run: |
           mkdir rel
           cp app/build/outputs/apk/release/3SVerse_WiFi_Transfer-release.apk \
-             "rel/3SVerse-WiFi-Transfer-Android-v${VERSION}.apk"
+             "rel/3SVerse-WiFi-Transfer-Android.apk"
           ls -la rel/
 
       - name: Attach APK to release
@@ -50,14 +50,14 @@ jobs:
           body: |
             Local WiFi file transfer - phone to PC. No internet, no cloud.
 
-            - `3SVerse-WiFi-Transfer-PC-v*.exe` - single-file PC receiver (no install)
-            - `3SVerse-WiFi-Transfer-Android-v*.apk` - Android app (side-load)
+            - `3SVerse-WiFi-Transfer-PC.exe` - single-file PC receiver (no install)
+            - `3SVerse-WiFi-Transfer-Android.apk` - Android app (side-load)
 
             Both devices must be on the SAME WiFi router network.
 
             **Install tip:** if an older version is already installed, the new APK
             installs right over it (same signature). If Play Protect warns, choose
             "More details" > "Install anyway". Android 8.0+ required.
-          files: rel/3SVerse-WiFi-Transfer-Android-v${{ env.VERSION }}.apk
+          files: rel/3SVerse-WiFi-Transfer-Android.apk
           allow_updates: true
           make_latest: true
