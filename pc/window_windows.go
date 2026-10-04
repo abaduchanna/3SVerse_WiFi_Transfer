@@ -105,9 +105,40 @@ func openAppWindow(url string) bool {
                 closeOrphanWebView() // kill the blank white host window
                 return false
         }
+        applyDarkWebViewTitlebar()
         w.Navigate(url)
         w.Run()
         return true
+}
+
+// applyDarkWebViewTitlebar styles the real Win32 non-client area. CSS cannot
+// affect this strip, which is why it previously stayed white in dark mode.
+func applyDarkWebViewTitlebar() {
+        user32 := windows.NewLazySystemDLL("user32.dll")
+        dwmapi := windows.NewLazySystemDLL("dwmapi.dll")
+        find := user32.NewProc("FindWindowW")
+        setPos := user32.NewProc("SetWindowPos")
+        setAttr := dwmapi.NewProc("DwmSetWindowAttribute")
+        title, _ := windows.UTF16PtrFromString("3SVerse WiFi Transfer")
+        hwnd, _, _ := find.Call(0, uintptr(unsafe.Pointer(title)))
+        if hwnd == 0 {
+                return
+        }
+        enabled := uint32(1)
+        result, _, _ := setAttr.Call(hwnd, 20,
+                uintptr(unsafe.Pointer(&enabled)), unsafe.Sizeof(enabled))
+        if result != 0 {
+                setAttr.Call(hwnd, 19, uintptr(unsafe.Pointer(&enabled)), unsafe.Sizeof(enabled))
+        }
+        // COLORREF is 0x00BBGGRR.
+        caption := uint32(0x00260D09)
+        text := uint32(0x00FFFFFF)
+        border := caption
+        setAttr.Call(hwnd, 35, uintptr(unsafe.Pointer(&caption)), unsafe.Sizeof(caption))
+        setAttr.Call(hwnd, 36, uintptr(unsafe.Pointer(&text)), unsafe.Sizeof(text))
+        setAttr.Call(hwnd, 34, uintptr(unsafe.Pointer(&border)), unsafe.Sizeof(border))
+        setPos.Call(hwnd, 0, 0, 0, 0, 0,
+                0x0001|0x0002|0x0004|0x0020|0x0040)
 }
 
 // closeOrphanWebView closes the WebView2 host window the library leaves
