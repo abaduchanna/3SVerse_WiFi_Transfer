@@ -47,7 +47,7 @@ const (
         port      = 8765
         discPort  = 8766
         discMagic = "3SVERSE-XFER"
-        version   = "1.4.1"
+        version   = "1.4.3"
 )
 
 var driveRe = regexp.MustCompile(`^[A-Za-z]:`)
@@ -111,8 +111,9 @@ type Stats struct {
         filesDone int64
         bytesDone int64
         speed     float64
+        wireBytes int64
         lastT     time.Time
-        lastB     int64
+        lastWire  int64
 }
 
 func NewStats(root string) *Stats {
@@ -141,10 +142,28 @@ func (s *Stats) tick() {
         defer s.mu.Unlock()
         dt := time.Since(s.lastT).Seconds()
         if dt >= 1 {
-                s.speed = float64(s.bytesDone-s.lastB) / dt
+                instant := float64(s.wireBytes-s.lastWire) / dt
+                if instant < 0 {
+                        instant = 0
+                }
+                if instant == 0 {
+                        s.speed = 0
+                } else if s.speed <= 0 {
+                        s.speed = instant
+                } else {
+                        s.speed = s.speed*0.65 + instant*0.35
+                }
                 s.lastT = time.Now()
-                s.lastB = s.bytesDone
+                s.lastWire = s.wireBytes
         }
+}
+
+// addWireBytes records bytes while they arrive, not only after a whole file
+// is flushed and renamed. This keeps the dashboard speed live for large files.
+func (s *Stats) addWireBytes(n int) {
+        s.mu.Lock()
+        s.wireBytes += int64(n)
+        s.mu.Unlock()
 }
 
 func human(b int64) string {
@@ -334,7 +353,7 @@ func (sv *Server) handleOutboxPut(w http.ResponseWriter, r *http.Request) {
                 return
         }
         dst := filepath.Join(sv.outbox, filepath.FromSlash(rel))
-        n, err := streamToFile(r, dst)
+        n, err := streamToFile(r, dst, nil)
         if err != nil {
                 os.Remove(dst + ".part")
                 sv.writeJSONCode(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
@@ -389,7 +408,7 @@ func (sv *Server) handleFile(w http.ResponseWriter, r *http.Request) {
         final := filepath.Join(sv.root, filepath.FromSlash(rel))
         tmp := final + ".part"
 
-        n, err := streamToFile(r, tmp)
+        n, err := streamToFile(r, tmp, sv.st.addWireBytes)
         if err == nil {
                 err = os.Rename(tmp, final)
         }
@@ -408,7 +427,12 @@ func (sv *Server) handleFile(w http.ResponseWriter, r *http.Request) {
         sv.writeJSON(w, map[string]interface{}{"ok": true, "size": n})
 }
 
-func streamToFile(r *http.Request, dst string) (int64, error) {
+var copyBufPool = sync.Pool{New: func() interface{} {
+        b := make([]byte, 2<<20)
+        return &b
+}}
+
+func streamToFile(r *http.Request, dst string, onChunk func(int)) (int64, error) {
         if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
                 return 0, err
         }
@@ -417,8 +441,19 @@ func streamToFile(r *http.Request, dst string) (int64, error) {
                 return 0, err
         }
         defer f.Close()
-        buf := make([]byte, 1<<20)
-        return io.CopyBuffer(f, r.Body, buf)
+        bufp := copyBufPool.Get().(*[]byte)
+        defer copyBufPool.Put(bufp)
+        progress := io.TeeReader(r.Body, progressWriter(onChunk))
+        return io.CopyBuffer(f, progress, *bufp)
+}
+
+type progressWriter func(int)
+
+func (w progressWriter) Write(p []byte) (int, error) {
+        if w != nil {
+                w(len(p))
+        }
+        return len(p), nil
 }
 
 // diskUsage returns free space via platform-specific helpers (disk_unix.go /

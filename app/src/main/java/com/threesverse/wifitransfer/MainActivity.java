@@ -184,8 +184,10 @@ public class MainActivity extends Activity {
 
         TextView title = label("3SVERSE WIFI TRANSFER", 16, true, textMain);
         title.setLetterSpacing(0.18f);
+        title.setGravity(Gravity.CENTER);
         TextView sub = label("PHONE → PC · LOCAL WIFI · NO CLOUD", 10, false, textSub);
         sub.setLetterSpacing(0.3f);
+        sub.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams lpT = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lpT.gravity = Gravity.CENTER_HORIZONTAL;

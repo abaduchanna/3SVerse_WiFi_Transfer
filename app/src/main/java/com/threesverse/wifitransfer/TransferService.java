@@ -13,6 +13,7 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.provider.DocumentsContract;
 
 import org.json.JSONObject;
@@ -89,12 +90,19 @@ public class TransferService extends Service {
     private final ArrayDeque<SafTree.Entry> queue = new ArrayDeque<>();
     private final Map<String, Long> manifest = new HashMap<>();
     private final AtomicInteger inFlight = new AtomicInteger();
-    private final AtomicLong inflightBytes = new AtomicLong();
+    /** Monotonic bytes written to the network, including retry traffic. */
+    private final AtomicLong wireBytes = new AtomicLong();
+    /** One reusable 2 MB buffer per worker avoids sustained GC during many files. */
+    private final ThreadLocal<byte[]> uploadBuffer =
+            ThreadLocal.withInitial(() -> new byte[BUF]);
     private ExecutorService pool;
     private Thread manager;
 
     private volatile boolean paused = false;
     private volatile boolean cancelled = false;
+    private long speedSampleAt;
+    private long speedSampleBytes;
+    private double smoothedBytesPerSec;
 
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
@@ -134,6 +142,7 @@ public class TransferService extends Service {
             intentDirs = intent.getStringArrayExtra("selDirs");
             intentFiles = intent.getStringArrayExtra("selFiles");
             STATE.reset();
+            wireBytes.set(0L);
             // Guard: a broken intent (missing host/port) must never surface as
             // a confusing "Could not reach PC address null:0" network error.
             if (holder.host == null || holder.host.trim().isEmpty() || holder.port <= 0) {
@@ -305,6 +314,7 @@ public class TransferService extends Service {
             }
             STATE.phase = State.TRANSFERRING;
             pool = Executors.newFixedThreadPool(WORKERS);
+            resetSpeedSample();
             dispatchLoop();
 
             if (cancelled) {
@@ -337,15 +347,12 @@ public class TransferService extends Service {
 
     private void dispatchLoop() throws InterruptedException {
         long lastNotif = 0;
-        long lastSpeedT = System.currentTimeMillis();
-        long lastSpeedB = 0;
 
         while (true) {
             if (cancelled) return;
             if (paused) {
                 Thread.sleep(300);
-                lastSpeedT = System.currentTimeMillis();
-                lastSpeedB = currentBytesApprox();
+                resetSpeedSample();
                 continue;
             }
             SafTree.Entry e;
@@ -355,7 +362,7 @@ public class TransferService extends Service {
             if (e == null) {
                 if (inFlight.get() == 0) break; // everything dispatched + finished
                 Thread.sleep(150);
-                tickSpeed(lastSpeedT, lastSpeedB);
+                tickSpeed();
                 continue;
             }
 
@@ -365,9 +372,11 @@ public class TransferService extends Service {
                 have = sz != null && sz == e.size;
             }
             if (have) {
-                STATE.filesSkipped++;
-                STATE.filesDone++; // count as processed
-                STATE.bytesDone += e.size;
+                synchronized (STATE) {
+                    STATE.filesSkipped++;
+                    STATE.filesDone++; // count as processed
+                    STATE.bytesDone += e.size;
+                }
                 continue;
             }
 
@@ -387,32 +396,44 @@ public class TransferService extends Service {
             long now = System.currentTimeMillis();
             if (now - lastNotif > 600) {
                 lastNotif = now;
-                tickSpeed(lastSpeedT, lastSpeedB);
+                tickSpeed();
                 notifyProgress();
             }
         }
         // drain tail (last in-flight files)
         while (inFlight.get() > 0 && !cancelled) {
             Thread.sleep(150);
-            tickSpeed(lastSpeedT, lastSpeedB);
+            tickSpeed();
             notifyProgress();
         }
+        STATE.bytesPerSec = 0;
     }
 
-    private long currentBytesApprox() {
-        return STATE.bytesDone + inflightBytes.get();
+    private long currentWireBytes() {
+        return wireBytes.get();
     }
 
-    private void tickSpeed(long lastSpeedT, long lastSpeedB) {
-        long now = System.currentTimeMillis();
-        long dt = now - lastSpeedT;
-        if (dt >= 800) {
-            long db = currentBytesApprox() - lastSpeedB;
-            // Keep-alive workers subtract their bytes when a file finishes,
-            // so a short negative dip between "file done" and "bytesDone
-            // update" is normal - never show it as negative speed.
-            STATE.bytesPerSec = Math.max(0, (long) (db * 1000.0 / dt));
-        }
+    private void resetSpeedSample() {
+        speedSampleAt = SystemClock.elapsedRealtime();
+        speedSampleBytes = currentWireBytes();
+        smoothedBytesPerSec = 0;
+        STATE.bytesPerSec = 0;
+    }
+
+    /** Rolling link speed, not the declining average since transfer start. */
+    private void tickSpeed() {
+        long now = SystemClock.elapsedRealtime();
+        long dt = now - speedSampleAt;
+        if (dt < 750) return;
+        long current = currentWireBytes();
+        long db = Math.max(0, current - speedSampleBytes);
+        double instant = db * 1000.0 / Math.max(1L, dt);
+        smoothedBytesPerSec = smoothedBytesPerSec <= 0
+                ? instant
+                : (smoothedBytesPerSec * 0.65) + (instant * 0.35);
+        STATE.bytesPerSec = Math.max(0L, Math.round(smoothedBytesPerSec));
+        speedSampleAt = now;
+        speedSampleBytes = current;
     }
 
     private void shutdownPool() {
@@ -438,8 +459,10 @@ public class TransferService extends Service {
         for (int attempt = 1; attempt <= RETRIES && !cancelled; attempt++) {
             try {
                 uploadOnce(e);
-                STATE.filesDone++;
-                STATE.bytesDone += e.size;
+                synchronized (STATE) {
+                    STATE.filesDone++;
+                    STATE.bytesDone += e.size;
+                }
                 synchronized (manifest) {
                     manifest.put(e.relPath, e.size);
                 }
@@ -475,19 +498,16 @@ public class TransferService extends Service {
             if (in == null) throw new Exception("Could not open file: " + e.relPath);
             long sent = 0;
             try (OutputStream out = c.getOutputStream()) {
-                byte[] buf = new byte[BUF];
+                byte[] buf = uploadBuffer.get();
                 int n;
                 while ((n = in.read(buf)) > 0) {
                     out.write(buf, 0, n);
                     sent += n;
-                    inflightBytes.addAndGet(n); // per-worker delta, not absolute
+                    wireBytes.addAndGet(n);
                     STATE.currentBytes = sent;
                 }
             } finally {
                 try { in.close(); } catch (Exception ignore) { }
-                // Give the bytes this attempt pushed back to the pool counter
-                // (bytesDone takes over on success, retry restarts at zero).
-                if (sent > 0) inflightBytes.addAndGet(-sent);
             }
             int code = c.getResponseCode();
             if (code != 200) throw new Exception("HTTP " + code);

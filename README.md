@@ -16,7 +16,7 @@ your TP-Link (or any) router at the maximum speed both devices support — typic
 - **Auto-discovery** — start the PC server, open the app on the phone: PC address fills in automatically (UDP broadcast). Manual IP entry also supported.
 - **Firewall auto-setup** — the exe adds the Windows inbound rules (TCP 8765 / UDP 8766) on first run; if it needs admin rights, Windows shows one UAC prompt. Skip with `-no-firewall`.
 - **Whole-folder transfer** — pick a main folder (even Internal Storage root) with the system folder picker; the entire tree is transferred preserving structure.
-- **Fast** — 3 parallel file streams + 1 MB buffers to saturate WiFi.
+- **Fast** — 6 parallel keep-alive file streams + 2 MB buffers to saturate WiFi.
 - **Uninterruptible** — Android foreground service + wake locks so hours-long transfers are not killed; per-file retry on errors.
 - **Resume** — stop/pause/reconnect any time. Already-transferred files (same name + size) are skipped automatically.
 - **Private** — data never leaves your router. The PC writes into one save folder you choose.
@@ -91,9 +91,9 @@ Phone (APK)                                 PC (EXE)
 ────────────                                ─────────
 SafTree walks the picked folder             Go net/http server on 0.0.0.0:8765
   (SAF / DocumentsContract, no AndroidX)    ├─ GET  /hello    → reachability, free space, outbox count
-3 uploader threads                          ├─ GET  /manifest → received files+sizes (resume)
+6 uploader threads                          ├─ GET  /manifest → received files+sizes (resume)
   HttpURLConnection PUT                     ├─ PUT  /file?path=rel → streams to .part, atomic rename
-  fixed-length streaming, 1 MB buffer       ├─ POST /outbox?name=rel → queue for the phone (dashboard)
+  fixed-length streaming, 2 MB buffer       ├─ POST /outbox?name=rel → queue for the phone (dashboard)
 PC pulls queued files                       ├─ GET  /outbox/list | /outbox/file?name=rel | /outbox/clear
   → MediaStore Downloads (API 29+)          └─ POST /done     → summary
 UDP 255.255.255.255:8766 ←─────────────────── broadcast "3SVERSE-XFER|ip|port|host|outboxN" every 2 s

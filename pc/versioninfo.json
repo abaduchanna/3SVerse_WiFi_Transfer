@@ -3,13 +3,13 @@
     "FileVersion": {
       "Major": 1,
       "Minor": 4,
-      "Patch": 1,
+      "Patch": 3,
       "Build": 0
     },
     "ProductVersion": {
       "Major": 1,
       "Minor": 4,
-      "Patch": 1,
+      "Patch": 3,
       "Build": 0
     },
     "FileFlagsMask": "3f",
@@ -22,14 +22,14 @@
     "Comments": "Local WiFi file transfer - phone to PC, no internet, no cloud.",
     "CompanyName": "3S Verse",
     "FileDescription": "3SVerse WiFi Transfer - receives files from your phone over local WiFi",
-    "FileVersion": "1.4.1.0",
+    "FileVersion": "1.4.3.0",
     "InternalName": "3svwifixfer",
     "LegalCopyright": "Copyright (C) 3S Verse",
     "LegalTrademarks": "",
-    "OriginalFilename": "3SVerse-WiFi-Transfer-PC-v1.4.1.exe",
+    "OriginalFilename": "3SVerse-WiFi-Transfer-PC-v1.4.3.exe",
     "PrivateBuild": "",
     "ProductName": "3SVerse WiFi Transfer",
-    "ProductVersion": "1.4.1",
+    "ProductVersion": "1.4.3",
     "SpecialBuild": ""
   },
   "VarFileInfo": {
