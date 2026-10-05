@@ -148,9 +148,16 @@ body{font:14px/1.5 -apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#
 @media (prefers-reduced-motion:reduce){#bgart>div,#bgart img{animation:none}}
 .wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:34px 20px 74px}
 header{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-bottom:26px}
-header img{height:34px;display:block}
+/* logo sized like the License Studio header (user order: "xfer ka logo
+   size LS ke logo jitna kardo"): LS shows the same 111x34 asset on a
+   ~900px window; scaled to this 1160px window that is 143px wide ->
+   44px tall at the asset aspect. */
+header img{height:44px;display:block}
+/* header colors = the License Studio header (user: "header bhi same
+   color ke kardo"): title word in brand cyan, eyebrow line cyan. */
 header h1{font-size:15px;font-weight:700;letter-spacing:.2em;margin-top:4px}
-header .sub{font-size:9.5px;letter-spacing:.3em;color:#9b97b3}
+header h1 .hl{color:#6ee7ef}
+header .sub{font-size:9.5px;letter-spacing:.3em;color:#6ee7ef}
 .chip{display:inline-flex;align-items:center;gap:8px;background:#0d0c14;border:1px solid #232130;border-radius:999px;padding:7px 16px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9b97b3;margin-bottom:22px}
 .chip .dot{width:8px;height:8px;border-radius:50%;background:#c7ef70;box-shadow:0 0 10px #c7ef70}
 .chip.busy .dot{background:#6ee7ef;box-shadow:0 0 10px #6ee7ef;animation:pulse 1s ease-in-out infinite}
@@ -184,7 +191,7 @@ footer{position:fixed;left:0;right:0;bottom:0;z-index:2;text-align:center;font-s
 <div class="wrap">
 <header>
 <img src="/assets/logo.png" alt="3S Verse">
-<h1 class="mono">3SVERSE WIFI TRANSFER</h1>
+<h1 class="mono">3SVERSE WIFI <span class="hl">TRANSFER</span></h1>
 <div class="sub mono">PC RECEIVER &middot; PHONE &rarr; PC &middot; LOCAL WIFI &middot; NO CLOUD</div>
 </header>
 <div class="chip" id="chip"><span class="dot"></span><span id="chiptext">Waiting for the phone&hellip;</span></div>
