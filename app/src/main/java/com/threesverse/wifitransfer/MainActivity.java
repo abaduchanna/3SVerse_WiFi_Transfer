@@ -363,12 +363,19 @@ public class MainActivity extends Activity {
 
         ImageView ring = new ImageView(this);
         ring.setImageResource(R.drawable.bg_spiral);
-        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(dp(520), dp(540));
+        // 100% EXE dashboard geometry (pc/gui.go #bgart): ring = 52vw wide
+        // (capped at 640px), pushed 24vw off the right edge and 14vh above
+        // the top edge; spiral.webp aspect (900x932) keeps the height.
+        android.util.DisplayMetrics dmp = getResources().getDisplayMetrics();
+        int sw = dmp.widthPixels, sh = dmp.heightPixels;
+        int ringW = (int) Math.min(sw * 0.52f, dp(640));
+        int ringH = (int) (ringW * 932.0 / 900.0);
+        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(ringW, ringH);
         rp.gravity = Gravity.TOP | Gravity.END;
-        rp.setMarginEnd(dp(210));
-        rp.topMargin = dp(30);
+        rp.setMarginEnd((int) (-sw * 0.24f));
+        rp.topMargin = (int) (-sh * 0.14f);
         ring.setLayoutParams(rp);
-        ring.setAlpha(0.45f);
+        ring.setAlpha(0.5f);
         RotateAnimation ringSpin = new RotateAnimation(0f, 360f,
                 Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
         ringSpin.setDuration(120000L);
@@ -384,10 +391,13 @@ public class MainActivity extends Activity {
 
         ImageView orb = new ImageView(this);
         orb.setImageResource(R.drawable.bg_orb);
-        FrameLayout.LayoutParams op = new FrameLayout.LayoutParams(dp(300), dp(300));
+        // orb = 30vw (capped at 380px), 10vw off the left edge and 22vh
+        // below the bottom edge - the exact EXE composition.
+        int orbS = (int) Math.min(sw * 0.30f, dp(380));
+        FrameLayout.LayoutParams op = new FrameLayout.LayoutParams(orbS, orbS);
         op.gravity = Gravity.BOTTOM | Gravity.START;
-        op.leftMargin = dp(60);
-        op.bottomMargin = dp(70);
+        op.leftMargin = (int) (-sw * 0.10f);
+        op.bottomMargin = (int) (-sh * 0.22f);
         orb.setLayoutParams(op);
         orb.setAlpha(0.4f);
         RotateAnimation orbSpin = new RotateAnimation(0f, 360f,

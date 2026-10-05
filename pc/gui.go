@@ -12,15 +12,15 @@ package main
 // Everything is embedded in the exe - the page works fully offline.
 
 import (
-	_ "embed"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"time"
+        _ "embed"
+        "encoding/json"
+        "fmt"
+        "net/http"
+        "os"
+        "os/exec"
+        "path/filepath"
+        "runtime"
+        "time"
 )
 
 //go:embed assets/logo.png
@@ -38,90 +38,90 @@ var faviconICO []byte
 var startedAt = time.Now()
 
 func (sv *Server) serveGUI(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(guiHTML))
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        _, _ = w.Write([]byte(guiHTML))
 }
 
 func serveBytes(w http.ResponseWriter, ctype string, b []byte) {
-	w.Header().Set("Content-Type", ctype)
-	w.Header().Set("Cache-Control", "max-age=3600")
-	_, _ = w.Write(b)
+        w.Header().Set("Content-Type", ctype)
+        w.Header().Set("Cache-Control", "max-age=3600")
+        _, _ = w.Write(b)
 }
 
 // serveStats - live numbers for the dashboard (polled once a second).
 func (sv *Server) serveStats(w http.ResponseWriter, _ *http.Request) {
-	sv.st.mu.Lock()
-	files, bytes, speed := sv.st.filesDone, sv.st.bytesDone, sv.st.speed
-	sv.st.mu.Unlock()
-	var free uint64 = 0
-	if us, err := diskUsage(sv.root); err == nil {
-		free = us.Free
-	}
-	oc, ob := sv.outboxStats()
-	body, _ := json.Marshal(map[string]interface{}{
-		"ok": true, "files": files, "bytes": bytes, "speed": speed,
-		"free": free, "version": version, "dir": sv.root,
-		"ip": lanIP(), "port": port, "uptime": int(time.Since(startedAt).Seconds()),
-		"outbox": oc, "outboxBytes": ob,
-	})
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(body)
+        sv.st.mu.Lock()
+        files, bytes, speed := sv.st.filesDone, sv.st.bytesDone, sv.st.speed
+        sv.st.mu.Unlock()
+        var free uint64 = 0
+        if us, err := diskUsage(sv.root); err == nil {
+                free = us.Free
+        }
+        oc, ob := sv.outboxStats()
+        body, _ := json.Marshal(map[string]interface{}{
+                "ok": true, "files": files, "bytes": bytes, "speed": speed,
+                "free": free, "version": version, "dir": sv.root,
+                "ip": lanIP(), "port": port, "uptime": int(time.Since(startedAt).Seconds()),
+                "outbox": oc, "outboxBytes": ob,
+        })
+        w.Header().Set("Content-Type", "application/json")
+        _, _ = w.Write(body)
 }
 
 // openFolder - POST: reveal the save folder in Explorer / Finder.
 func (sv *Server) openFolder(w http.ResponseWriter, _ *http.Request) {
-	var err error
-	switch runtime.GOOS {
-	case "windows":
-		err = exec.Command("explorer", sv.root).Start()
-	case "darwin":
-		err = exec.Command("open", sv.root).Start()
-	default:
-		err = exec.Command("xdg-open", sv.root).Start()
-	}
-	if err != nil {
-		sv.writeJSONCode(w, http.StatusInternalServerError,
-			map[string]interface{}{"ok": false, "error": err.Error()})
-		return
-	}
-	sv.writeJSON(w, map[string]interface{}{"ok": true})
+        var err error
+        switch runtime.GOOS {
+        case "windows":
+                err = exec.Command("explorer", sv.root).Start()
+        case "darwin":
+                err = exec.Command("open", sv.root).Start()
+        default:
+                err = exec.Command("xdg-open", sv.root).Start()
+        }
+        if err != nil {
+                sv.writeJSONCode(w, http.StatusInternalServerError,
+                        map[string]interface{}{"ok": false, "error": err.Error()})
+                return
+        }
+        sv.writeJSON(w, map[string]interface{}{"ok": true})
 }
 
 // openBrowser - open the dashboard like a desktop app: Edge/Chrome app-mode
 // window first (chromeless, taskbar icon, no tabs), then the default browser.
 func openBrowser(url string) {
-	if runtime.GOOS == "windows" {
-		candidates := []string{}
-		for _, env := range []string{"ProgramFiles(x86)", "ProgramFiles", "LocalAppData"} {
-			root := os.Getenv(env)
-			if root == "" {
-				continue
-			}
-			candidates = append(candidates,
-				filepath.Join(root, `Microsoft\Edge\Application\msedge.exe`),
-				filepath.Join(root, `Google\Chrome\Application\chrome.exe`))
-		}
-		for _, exe := range candidates {
-			if _, err := os.Stat(exe); err != nil {
-				continue
-			}
-			if exec.Command(exe, "--app="+url, "--window-size=1180,820").Start() == nil {
-				return
-			}
-		}
-		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
-		return
-	}
-	var err error
-	switch runtime.GOOS {
-	case "darwin":
-		err = exec.Command("open", url).Start()
-	default:
-		err = exec.Command("xdg-open", url).Start()
-	}
-	if err != nil {
-		fmt.Println("(open the dashboard manually at " + url + ")")
-	}
+        if runtime.GOOS == "windows" {
+                candidates := []string{}
+                for _, env := range []string{"ProgramFiles(x86)", "ProgramFiles", "LocalAppData"} {
+                        root := os.Getenv(env)
+                        if root == "" {
+                                continue
+                        }
+                        candidates = append(candidates,
+                                filepath.Join(root, `Microsoft\Edge\Application\msedge.exe`),
+                                filepath.Join(root, `Google\Chrome\Application\chrome.exe`))
+                }
+                for _, exe := range candidates {
+                        if _, err := os.Stat(exe); err != nil {
+                                continue
+                        }
+                        if exec.Command(exe, "--app="+url, "--window-size=1180,820").Start() == nil {
+                                return
+                        }
+                }
+                _ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+                return
+        }
+        var err error
+        switch runtime.GOOS {
+        case "darwin":
+                err = exec.Command("open", url).Start()
+        default:
+                err = exec.Command("xdg-open", url).Start()
+        }
+        if err != nil {
+                fmt.Println("(open the dashboard manually at " + url + ")")
+        }
 }
 
 const guiHTML = `<!DOCTYPE html>
@@ -146,7 +146,7 @@ body{font:14px/1.5 -apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#
 @keyframes bgfloatR{0%,100%{transform:translateY(-16px)}50%{transform:translateY(16px)}}
 @keyframes bgfloatO{0%,100%{transform:translateY(-12px)}50%{transform:translateY(12px)}}
 @media (prefers-reduced-motion:reduce){#bgart>div,#bgart img{animation:none}}
-.wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:34px 20px 40px}
+.wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:34px 20px 74px}
 header{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-bottom:26px}
 header img{height:34px;display:block}
 header h1{font-size:15px;font-weight:700;letter-spacing:.2em;margin-top:4px}
@@ -173,7 +173,9 @@ header .sub{font-size:9.5px;letter-spacing:.3em;color:#9b97b3}
 .logwrap{margin-top:4px}
 .logwrap h2{font-size:9.5px;letter-spacing:.24em;color:#6ee7ef;font-weight:500;margin-bottom:9px}
 #log{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#b9b5cc;background:#12101a;border:1px solid #232130;border-radius:12px;padding:12px;height:150px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
-footer{position:relative;text-align:center;font-size:9px;letter-spacing:.2em;color:#5e5a75;margin-top:26px}
+/* Fixed brand footer: always visible at the bottom of the window (same
+   behavior as the Android app footer). */
+footer{position:fixed;left:0;right:0;bottom:0;z-index:2;text-align:center;font-size:9px;letter-spacing:.2em;color:#5e5a75;padding:9px 12px 10px;background:rgba(13,12,20,.94);border-top:1px solid #232130}
 </style></head><body>
 <div id="bgart" aria-hidden="true">
 <div class="bg-ring"><img src="/assets/spiral.webp" alt=""></div>
