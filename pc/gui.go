@@ -148,11 +148,12 @@ body{font:14px/1.5 -apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#
 @media (prefers-reduced-motion:reduce){#bgart>div,#bgart img{animation:none}}
 .wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:34px 20px 74px}
 header{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-bottom:26px}
-/* logo sized like the License Studio header (user order: "xfer ka logo
-   size LS ke logo jitna kardo"): LS shows the same 111x34 asset on a
-   ~900px window; scaled to this 1160px window that is 143px wide ->
-   44px tall at the asset aspect. */
-header img{height:44px;display:block}
+/* logo sized like the License Studio header, then made visibly bigger
+   (user orders: "xfer ka logo size LS ke logo jitna kardo" then
+   "xfer ka logo bada karne ka bola tha na?"): 44px read too small
+   next to the LS header, so the header mark is now 60px tall
+   (180px wide at the 900x300 asset aspect). */
+header img{height:60px;display:block}
 /* header colors = the License Studio header (user: "header bhi same
    color ke kardo"): title word in brand cyan, eyebrow line cyan. */
 header h1{font-size:15px;font-weight:700;letter-spacing:.2em;margin-top:4px}
