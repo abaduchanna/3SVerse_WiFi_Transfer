@@ -47,7 +47,7 @@ const (
         port      = 8765
         discPort  = 8766
         discMagic = "3SVERSE-XFER"
-        version   = "1.4.5"
+        version   = "1.4.11"
 )
 
 var driveRe = regexp.MustCompile(`^[A-Za-z]:`)

@@ -10,7 +10,9 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -355,13 +357,36 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(140)));
         root.addView(c4);
 
-        // Fixed brand footer: it remains visible at the bottom while the
-        // transfer controls scroll independently above it.
-        TextView footer = label("DEVELOPED BY WWW.3SVERSE.COM", 9, true,
-                dark ? Color.rgb(199, 203, 224) : Color.rgb(245, 241, 230));
-        footer.setGravity(Gravity.CENTER);
-        footer.setLetterSpacing(0.12f);
+        // Fixed brand footer, the 3SVerse standard used by ALL four
+        // surfaces (xfer APK + xfer PC dashboard + Studio exe + Studio
+        // app): 32dp strip, bg #0d0c14, developed-by CENTER + app
+        // version RIGHT, 1dp top border (user: "xfer ka footer bhi
+        // standardize kardo"). It remains visible at the bottom while
+        // the transfer controls scroll independently above it.
+        FrameLayout footer = new FrameLayout(this);
         footer.setBackgroundColor(Color.rgb(13, 12, 20));
+        TextView dev = label("DEVELOPED BY WWW.3SVERSE.COM", 9, true,
+                dark ? Color.rgb(199, 203, 224) : Color.rgb(245, 241, 230));
+        dev.setGravity(Gravity.CENTER);
+        dev.setLetterSpacing(0.12f);
+        footer.addView(dev, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        String vname;
+        try {
+            vname = "v" + getPackageManager().getPackageInfo(
+                    getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            vname = "";
+        }
+        TextView ver = label(vname, 8, true,
+                dark ? Color.rgb(139, 135, 160) : Color.rgb(107, 104, 128));
+        ver.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        ver.setLetterSpacing(0.08f);
+        ver.setPadding(0, 0, dp(10), 0);
+        footer.addView(ver, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END));
 
         // Animated brand background (Studio): the 3sverse.com hero ring +
         // glossy orb behind the content. License Studio dashboard geometry
@@ -438,6 +463,13 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams footerParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(32), Gravity.BOTTOM);
         rootFrame.addView(footer, footerParams);
+        // 1dp top border on the footer strip (footer standard)
+        View footerLine = new View(this);
+        footerLine.setBackgroundColor(line);
+        FrameLayout.LayoutParams footerLineParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1), Gravity.BOTTOM);
+        footerLineParams.bottomMargin = dp(32);
+        rootFrame.addView(footerLine, footerLineParams);
         setContentView(rootFrame);
     }
 
@@ -618,7 +650,10 @@ public class MainActivity extends Activity {
     }
 
     private Button btn(String s) {
-        // Primary CTA: the Studio cyan -> magenta gradient with dark text
+        // Primary CTA: the Studio cyan -> magenta gradient with dark text.
+        // Pressed = brighter gradient, the touch twin of the PC dashboard
+        // hover (filter: brightness(1.1)) - "button/gradient/hover
+        // standardize karo".
         Button b = new Button(this);
         b.setText(s);
         b.setAllCaps(false);
@@ -629,23 +664,42 @@ public class MainActivity extends Activity {
                 GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[]{Color.rgb(110, 231, 239), Color.rgb(228, 75, 215)});
         g.setCornerRadius(dp(12));
-        b.setBackground(g);
+        GradientDrawable gPress = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Color.rgb(122, 236, 241), Color.rgb(231, 97, 220)});
+        gPress.setCornerRadius(dp(12));
+        StateListDrawable sl = new StateListDrawable();
+        sl.addState(new int[]{android.R.attr.state_pressed}, gPress);
+        sl.addState(new int[]{}, g);
+        b.setBackground(sl);
         b.setPadding(dp(14), dp(10), dp(14), dp(10));
         return b;
     }
 
     private Button btnGhost(String s) {
-        // Secondary action: Studio ghost style (bordered, dim text)
+        // Secondary action: Studio ghost style (bordered, dim text).
+        // Pressed = cyan border + cyan text + faint cyan wash, the touch
+        // twin of the PC ghost hover (border-color + color -> cyan).
         Button b = new Button(this);
         b.setText(s);
         b.setAllCaps(false);
         b.setTextSize(14);
-        b.setTextColor(dark ? Color.rgb(185, 181, 204) : Color.rgb(20, 18, 26));
+        int rest = dark ? Color.rgb(185, 181, 204) : Color.rgb(20, 18, 26);
         GradientDrawable g = new GradientDrawable();
         g.setColor(Color.TRANSPARENT);
         g.setCornerRadius(dp(12));
         g.setStroke(dp(1), line);
-        b.setBackground(g);
+        GradientDrawable gPress = new GradientDrawable();
+        gPress.setColor(Color.argb(26, 110, 231, 239));
+        gPress.setCornerRadius(dp(12));
+        gPress.setStroke(dp(1), Color.rgb(110, 231, 239));
+        StateListDrawable sl = new StateListDrawable();
+        sl.addState(new int[]{android.R.attr.state_pressed}, gPress);
+        sl.addState(new int[]{}, g);
+        b.setBackground(sl);
+        b.setTextColor(new ColorStateList(
+                new int[][]{{android.R.attr.state_pressed}, {}},
+                new int[]{Color.rgb(110, 231, 239), rest}));
         b.setPadding(dp(14), dp(10), dp(14), dp(10));
         return b;
     }

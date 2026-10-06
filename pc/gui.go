@@ -148,11 +148,10 @@ body{font:14px/1.5 -apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#
 @media (prefers-reduced-motion:reduce){#bgart>div,#bgart img{animation:none}}
 .wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:34px 20px 74px}
 header{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-bottom:26px}
-/* logo sized like the License Studio header, then made visibly bigger
-   (user orders: "xfer ka logo size LS ke logo jitna kardo" then
-   "xfer ka logo bada karne ka bola tha na?"): 44px read too small
-   next to the LS header, so the header mark is now 60px tall
-   (180px wide at the 900x300 asset aspect). */
+/* logo = the standardized 3SVerse wordmark (654x155 tight asset, same
+   file the Android app uses - "new logo standardize kardo"). 60px tall
+   keeps the user-approved header size (user: "xfer ka logo bada karne
+   ka bola tha na?"). */
 header img{height:60px;display:block}
 /* header colors = the License Studio header (user: "header bhi same
    color ke kardo"): title word in brand cyan, eyebrow line cyan. */
@@ -181,9 +180,12 @@ header .sub{font-size:9.5px;letter-spacing:.3em;color:#6ee7ef}
 .logwrap{margin-top:4px}
 .logwrap h2{font-size:9.5px;letter-spacing:.24em;color:#6ee7ef;font-weight:500;margin-bottom:9px}
 #log{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#b9b5cc;background:#12101a;border:1px solid #232130;border-radius:12px;padding:12px;height:150px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
-/* Fixed brand footer: always visible at the bottom of the window (same
-   behavior as the Android app footer). */
-footer{position:fixed;left:0;right:0;bottom:0;z-index:2;text-align:center;font-size:9px;letter-spacing:.2em;color:#5e5a75;padding:9px 12px 10px;background:rgba(13,12,20,.94);border-top:1px solid #232130}
+/* Fixed brand footer, the 3SVerse standard used by ALL four surfaces
+   (xfer PC + xfer Android + Studio exe + Studio Android): 32px strip,
+   bg #0d0c14, top border #232130, developed-by CENTER + version RIGHT,
+   text #c7cbe0 (user: "xfer ka footer bhi standardize kardo"). */
+footer{position:fixed;left:0;right:0;bottom:0;z-index:2;height:32px;line-height:31px;text-align:center;font-size:9px;font-weight:700;letter-spacing:.12em;color:#c7cbe0;background:#0d0c14;border-top:1px solid #232130;padding:0 12px}
+footer .ver{position:absolute;right:10px;top:0;line-height:32px;letter-spacing:.08em;color:#8b87a0}
 </style></head><body>
 <div id="bgart" aria-hidden="true">
 <div class="bg-ring"><img src="/assets/spiral.webp" alt=""></div>
@@ -229,7 +231,7 @@ footer{position:fixed;left:0;right:0;bottom:0;z-index:2;text-align:center;font-s
 <h2>RECEIVE LOG</h2>
 <div id="log">Waiting for the phone app on the same WiFi&hellip;</div>
 </div>
-<footer class="mono">DEVELOPED BY WWW.3SVERSE.COM &middot; <span id="s-ver">v?</span></footer>
+<footer class="mono">DEVELOPED BY WWW.3SVERSE.COM<span class="ver" id="s-ver">v?</span></footer>
 </div>
 <script>
 var lastFiles=-1,lastBytes=-1,idle=true;
