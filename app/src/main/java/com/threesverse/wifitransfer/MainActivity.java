@@ -101,6 +101,11 @@ public class MainActivity extends Activity {
     private final Set<String> expanded = new HashSet<>();
     private final Set<String> checkedDirs = new HashSet<>();
     private final Set<String> checkedFiles = new HashSet<>();
+    // v1.4.9 exclusion model: relative paths excluded from an INCLUDED parent
+    // (unticking a file/folder inside a ticked folder excludes just that item
+    // instead of blocking the checkbox - fixes single-file selection).
+    private final Set<String> excludedDirs = new HashSet<>();
+    private final Set<String> excludedFiles = new HashSet<>();
 
     private Thread discoThread;
     private volatile DatagramSocket discoSocket;
@@ -451,6 +456,9 @@ public class MainActivity extends Activity {
     }
 
     private void renderBrowser() {
+        // Keep the user's scroll position across rebuilds (toggling a checkbox
+        // or expanding a deep folder used to snap the list back to the top).
+        final int scrollY = browserScroll != null ? browserScroll.getScrollY() : 0;
         browserBox.removeAllViews();
         if (rootUriStr == null) {
             TextView t = label("Choose the Main Folder first.", 12, false, textSub);
@@ -467,16 +475,23 @@ public class MainActivity extends Activity {
             addRow(rootNode, 0, false);
         }
         renderRows(rootDocId, "", 0, checkedDirs.contains(rootDocId));
+        browserBox.post(() -> {
+            if (browserScroll != null) browserScroll.scrollTo(0, scrollY);
+        });
         updateSummary();
     }
 
-    private void renderRows(String parentDocId, String parentRel, int depth, boolean parentChecked) {
+    private void renderRows(String parentDocId, String parentRel, int depth, boolean parentIncluded) {
         List<SafTree.Node> kids = childrenOf(parentDocId, parentRel);
         for (SafTree.Node n : kids) {
-            addRow(n, depth, parentChecked);
+            addRow(n, depth, parentIncluded);
             if (n.dir && expanded.contains(n.docId)) {
-                renderRows(n.docId, n.rel, depth + 1,
-                        parentChecked || checkedDirs.contains(n.docId));
+                // Effective inclusion of this folder decides whether its own
+                // children are implicit (excludable) or explicit selections.
+                boolean selfIncluded = parentIncluded
+                        ? !excludedDirs.contains(n.rel)
+                        : checkedDirs.contains(n.docId);
+                renderRows(n.docId, n.rel, depth + 1, selfIncluded);
             }
         }
     }
@@ -487,23 +502,55 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(depth * 14), dp(2), dp(2), dp(2));
 
+        // v1.4.9 inclusion/exclusion model: items inside an included folder
+        // show as ticked and stay ENABLED - unticking excludes just that item
+        // from the parent's transfer. When the parent is not included, the
+        // checkbox is a normal explicit selection. Single files inside a
+        // folder are therefore always selectable.
         final boolean checked = n.dir
-                ? checkedDirs.contains(n.docId)
-                : checkedFiles.contains(n.docId);
-        final boolean locked = insideChecked && !checked;
+                ? (insideChecked
+                        ? !excludedDirs.contains(n.rel)
+                        : checkedDirs.contains(n.docId))
+                : (insideChecked
+                        ? !excludedFiles.contains(n.rel)
+                        : checkedFiles.contains(n.docId));
 
         CheckBox cb = new CheckBox(this);
         cb.setChecked(checked);
-        cb.setEnabled(!locked);
+        cb.setEnabled(true);
         cb.setScaleX(0.9f);
         cb.setScaleY(0.9f);
         cb.setOnCheckedChangeListener((b, isChecked) -> {
-            if (n.dir) {
-                if (isChecked) checkedDirs.add(n.docId);
-                else checkedDirs.remove(n.docId);
+            if (insideChecked) {
+                // Parent included: the checkbox excludes/includes this one item.
+                if (isChecked) {
+                    if (n.dir) excludedDirs.remove(n.rel);
+                    else excludedFiles.remove(n.rel);
+                } else {
+                    if (n.dir) {
+                        excludedDirs.add(n.rel);
+                        checkedDirs.remove(n.docId);
+                    } else {
+                        excludedFiles.add(n.rel);
+                        checkedFiles.remove(n.docId);
+                    }
+                }
             } else {
-                if (isChecked) checkedFiles.add(n.docId);
-                else checkedFiles.remove(n.docId);
+                if (n.dir) {
+                    if (isChecked) {
+                        checkedDirs.add(n.docId);
+                        excludedDirs.remove(n.rel);
+                    } else {
+                        checkedDirs.remove(n.docId);
+                    }
+                } else {
+                    if (isChecked) {
+                        checkedFiles.add(n.docId);
+                        excludedFiles.remove(n.rel);
+                    } else {
+                        checkedFiles.remove(n.docId);
+                    }
+                }
             }
             renderBrowser();
         });
@@ -516,7 +563,7 @@ public class MainActivity extends Activity {
                 : n.name + "  (" + human(n.size) + ")";
         name.setText(shown);
         name.setTextSize(13);
-        name.setTextColor(locked ? dimText : (checked ? accentDark : textMain));
+        name.setTextColor(checked ? accentDark : textMain);
         name.setTypeface(n.dir ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         name.setSingleLine(true);
         name.setPadding(dp(2), dp(8), dp(2), dp(8));
@@ -536,13 +583,21 @@ public class MainActivity extends Activity {
     }
 
     private void updateSummary() {
-        int nf = checkedFiles.size();
+        int nf = 0;
+        for (String docId : checkedFiles) {
+            SafTree.Node n = nodeByDocId.get(docId);
+            if (n != null && !excludedFiles.contains(n.rel)) nf++;
+        }
         int nd = checkedDirs.size();
+        int nx = excludedFiles.size() + excludedDirs.size();
         if (nf == 0 && nd == 0) {
-            selSummary.setText("Selected: nothing");
+            selSummary.setText(nx > 0
+                    ? "Selected: " + nx + " item(s) excluded"
+                    : "Selected: nothing");
             selSummary.setTextColor(textSub);
         } else {
             selSummary.setText("Selected: " + nd + " folder(s), " + nf + " file(s)"
+                    + (nx > 0 ? "  •  " + nx + " excluded" : "")
                     + (checkedDirs.contains(rootDocId) ? "  •  ENTIRE STORAGE" : ""));
             selSummary.setTextColor(accentDark);
         }
@@ -993,6 +1048,8 @@ public class MainActivity extends Activity {
             expanded.clear();
             checkedFiles.clear();
             checkedDirs.clear();
+            excludedFiles.clear();
+            excludedDirs.clear();
             checkedDirs.add(rootDocId); // default: whole picked folder
             SafTree.Node rootNode = new SafTree.Node(rootDocId, rootName, "", true, 0);
             nodeByDocId.put(rootDocId, rootNode);
@@ -1032,7 +1089,8 @@ public class MainActivity extends Activity {
         List<String> selFiles = new ArrayList<>();
         for (String docId : checkedFiles) {
             SafTree.Node n = nodeByDocId.get(docId);
-            if (n != null) selFiles.add(docId + "\t" + n.rel + "\t" + n.size);
+            if (n == null || excludedFiles.contains(n.rel)) continue;
+            selFiles.add(docId + "\t" + n.rel + "\t" + n.size);
         }
         Intent i = new Intent(this, TransferService.class);
         i.setAction(TransferService.ACTION_START);
@@ -1041,6 +1099,8 @@ public class MainActivity extends Activity {
         i.putExtra("port", 8765);
         i.putExtra("selDirs", selDirs.toArray(new String[0]));
         i.putExtra("selFiles", selFiles.toArray(new String[0]));
+        i.putExtra("exclDirs", excludedDirs.toArray(new String[0]));
+        i.putExtra("exclFiles", excludedFiles.toArray(new String[0]));
         // Clear any stale error/progress from a previous run BEFORE starting the
         // service, so the Progress card never shows an old failure (e.g. a
         // leftover "Could not reach PC address null:0") for the new attempt.

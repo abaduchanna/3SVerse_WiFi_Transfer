@@ -52,7 +52,10 @@ instead of the app window), `-no-open` (do not open anything), `-no-firewall`
 4. Optional: tap **Test** to confirm the PC is reachable (shows free disk space).
 5. **Phone → PC:** pick the main folder; the first row of the tree is the main
    folder itself - keep it ticked for everything, or untick it and tick individual
-   folders/files (multiple selections allowed). Tap **Start Transfer**.
+   folders/files (multiple selections allowed). Every checkbox stays usable:
+   inside a ticked folder, unticking a single file or subfolder excludes just
+   that item from the transfer (the rest of the folder still ships), and files
+   inside an unticked folder can be ticked individually. Tap **Start Transfer**.
 6. **PC → phone:** when the PC dashboard has queued files, the PC → Phone card
    shows the count - tap **Receive on Phone**.
 

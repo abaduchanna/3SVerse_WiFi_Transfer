@@ -141,6 +141,21 @@ public final class SafTree {
                                    String startDocId, String startRel,
                                    List<Entry> out, Set<String> seen,
                                    ScanProgress cb) throws Exception {
+        walkSubtree(cr, treeUri, startDocId, startRel, out, seen, cb, null, null);
+    }
+
+    /**
+     * Same as above, but skips directories listed in {@code excludedDirs} and
+     * files listed in {@code excludedFiles} (both keyed by relative path).
+     * These exclusion lists are built by the browser when the user unticks
+     * individual items inside an included folder (v1.4.9 selection model).
+     */
+    public static void walkSubtree(ContentResolver cr, Uri treeUri,
+                                   String startDocId, String startRel,
+                                   List<Entry> out, Set<String> seen,
+                                   ScanProgress cb,
+                                   Set<String> excludedDirs,
+                                   Set<String> excludedFiles) throws Exception {
         ArrayDeque<String[]> stack = new ArrayDeque<>();
         // [0] = documentId, [1] = relative directory path
         stack.push(new String[]{startDocId, startRel == null ? "" : startRel});
@@ -169,10 +184,12 @@ public final class SafTree {
                     }
                     String childRel = cur[1].isEmpty() ? name : cur[1] + "/" + name;
                     if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
-                        if (!isJunkDir(name)) {
+                        if (!isJunkDir(name)
+                                && (excludedDirs == null || !excludedDirs.contains(childRel))) {
                             stack.push(new String[]{docId, childRel});
                         }
                     } else {
+                        if (excludedFiles != null && excludedFiles.contains(childRel)) continue;
                         if (seen != null && !seen.add(childRel)) continue;
                         Uri docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId);
                         out.add(new Entry(childRel, docUri, size));

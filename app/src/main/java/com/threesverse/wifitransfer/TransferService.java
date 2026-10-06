@@ -86,6 +86,9 @@ public class TransferService extends Service {
     private UriHolder holder;
     private String[] intentDirs;
     private String[] intentFiles;
+    /** v1.4.9: items unticked inside an included folder (relative paths). */
+    private Set<String> exclDirs = new HashSet<>();
+    private Set<String> exclFiles = new HashSet<>();
 
     private final ArrayDeque<SafTree.Entry> queue = new ArrayDeque<>();
     private final Map<String, Long> manifest = new HashMap<>();
@@ -141,6 +144,8 @@ public class TransferService extends Service {
             holder.port = intent.getIntExtra("port", 8765);
             intentDirs = intent.getStringArrayExtra("selDirs");
             intentFiles = intent.getStringArrayExtra("selFiles");
+            exclDirs = toSet(intent.getStringArrayExtra("exclDirs"));
+            exclFiles = toSet(intent.getStringArrayExtra("exclFiles"));
             STATE.reset();
             wireBytes.set(0L);
             // Guard: a broken intent (missing host/port) must never surface as
@@ -225,6 +230,13 @@ public class TransferService extends Service {
         notifMgr.notify(NOTIF_ID, buildNotification(text, STATE.bytesDone, STATE.bytesTotal));
     }
 
+    /** Null-safe String[] to set (exclusion intent extras). */
+    private static Set<String> toSet(String[] a) {
+        Set<String> s = new HashSet<>();
+        if (a != null) java.util.Collections.addAll(s, a);
+        return s;
+    }
+
     private static String human(long b) {
         if (b < 1024) return b + " B";
         double v = b;
@@ -272,7 +284,7 @@ public class TransferService extends Service {
                     if (cancelled) return;
                     String[] p = d.split("\t", 2);
                     if (p.length < 2) continue;
-                    SafTree.walkSubtree(cr, tree, p[0], p[1], all, seen, cb);
+                    SafTree.walkSubtree(cr, tree, p[0], p[1], all, seen, cb, exclDirs, exclFiles);
                 }
             }
             String[] selFiles = intentFiles;
