@@ -1,6 +1,7 @@
 package com.threesverse.wifitransfer;
 
 import android.Manifest;
+import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -21,10 +22,8 @@ import android.provider.MediaStore;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.Animation;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
-import android.view.animation.RotateAnimation;
-import android.view.animation.TranslateAnimation;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -386,17 +385,20 @@ public class MainActivity extends Activity {
         rp.topMargin = (int) (-sw * 0.08f);
         ring.setLayoutParams(rp);
         ring.setAlpha(0.68f);
-        RotateAnimation ringSpin = new RotateAnimation(0f, 360f,
-                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
+        // Spin + float TOGETHER. (View.startAnimation() holds ONE animation -
+        // the second call replaced the first, so the ring only bobbed and
+        // never spun like the website. Property animators compose properly.)
+        ObjectAnimator ringSpin = ObjectAnimator.ofFloat(ring, View.ROTATION, 0f, 360f);
         ringSpin.setDuration(120000L);
         ringSpin.setInterpolator(new LinearInterpolator());
-        ringSpin.setRepeatCount(Animation.INFINITE);
-        ring.startAnimation(ringSpin);
-        TranslateAnimation ringFloat = new TranslateAnimation(0f, 0f, dp(16), -dp(16));
+        ringSpin.setRepeatCount(ObjectAnimator.INFINITE);
+        ObjectAnimator ringFloat = ObjectAnimator.ofFloat(ring, View.TRANSLATION_Y, -dp(16), dp(16));
         ringFloat.setDuration(12000L);
-        ringFloat.setRepeatMode(Animation.REVERSE);
-        ringFloat.setRepeatCount(Animation.INFINITE);
-        ring.startAnimation(ringFloat);
+        ringFloat.setInterpolator(new AccelerateDecelerateInterpolator());
+        ringFloat.setRepeatCount(ObjectAnimator.INFINITE);
+        ringFloat.setRepeatMode(ObjectAnimator.REVERSE);
+        ringSpin.start();
+        ringFloat.start();
         bgLayer.addView(ring);
 
         ImageView orb = new ImageView(this);
@@ -410,17 +412,18 @@ public class MainActivity extends Activity {
         op.bottomMargin = (int) (-sw * 0.12f);
         orb.setLayoutParams(op);
         orb.setAlpha(0.56f);
-        RotateAnimation orbSpin = new RotateAnimation(0f, 360f,
-                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
+        // Same fix as the ring: spin + float as two property animators.
+        ObjectAnimator orbSpin = ObjectAnimator.ofFloat(orb, View.ROTATION, 0f, 360f);
         orbSpin.setDuration(140000L);
         orbSpin.setInterpolator(new LinearInterpolator());
-        orbSpin.setRepeatCount(Animation.INFINITE);
-        orb.startAnimation(orbSpin);
-        TranslateAnimation orbFloat = new TranslateAnimation(0f, 0f, dp(12), -dp(12));
+        orbSpin.setRepeatCount(ObjectAnimator.INFINITE);
+        ObjectAnimator orbFloat = ObjectAnimator.ofFloat(orb, View.TRANSLATION_Y, -dp(12), dp(12));
         orbFloat.setDuration(13000L);
-        orbFloat.setRepeatMode(Animation.REVERSE);
-        orbFloat.setRepeatCount(Animation.INFINITE);
-        orb.startAnimation(orbFloat);
+        orbFloat.setInterpolator(new AccelerateDecelerateInterpolator());
+        orbFloat.setRepeatCount(ObjectAnimator.INFINITE);
+        orbFloat.setRepeatMode(ObjectAnimator.REVERSE);
+        orbSpin.start();
+        orbFloat.start();
         bgLayer.addView(orb);
 
         ScrollView outer = new ScrollView(this);
