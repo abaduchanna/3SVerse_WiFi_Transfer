@@ -175,25 +175,29 @@ public class MainActivity extends Activity {
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.logo_header);
         logo.setAdjustViewBounds(true);
-        logo.setMaxHeight(dp(56));
+        // License Studio header parity (user order 2026-10-06): logo 168dp wide
+        // (tight 654x155 wordmark), 8dp gaps, sub 9.5sp/.3em #8b87a0, 20dp below.
         LinearLayout.LayoutParams lp0 = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                dp(168), ViewGroup.LayoutParams.WRAP_CONTENT);
         lp0.gravity = Gravity.CENTER_HORIZONTAL;
         root.addView(logo, lp0);
-        root.addView(space(6));
+        root.addView(space(8));
 
         TextView title = label("3SVERSE WIFI TRANSFER", 16, true, textMain);
         title.setLetterSpacing(0.18f);
         title.setGravity(Gravity.CENTER);
         TextView sub = label("PHONE → PC · LOCAL WIFI · NO CLOUD", 10, false, textSub);
+        sub.setTextSize(9.5f);
+        sub.setTextColor(dark ? Color.rgb(139, 135, 160) : textSub);
         sub.setLetterSpacing(0.3f);
         sub.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams lpT = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lpT.gravity = Gravity.CENTER_HORIZONTAL;
         root.addView(title, lpT);
+        root.addView(space(8));
         root.addView(sub, new LinearLayout.LayoutParams(lpT));
-        root.addView(space(10));
+        root.addView(space(20));
 
         // --- connection card ---
         LinearLayout c1 = cardBox();
@@ -356,26 +360,27 @@ public class MainActivity extends Activity {
         footer.setBackgroundColor(Color.rgb(13, 12, 20));
 
         // Animated brand background (Studio): the 3sverse.com hero ring +
-        // glossy orb behind the content, at the site's exact speeds
-        // (ring 120s/turn + 16px/12s float, orb 140s/turn + 12px/13s float).
+        // glossy orb behind the content. License Studio dashboard geometry
+        // (user order 2026-10-06: use the large LS spiral/orb, the smaller
+        // xfer ones are gone) - ring 120s/turn + 16px/12s float, orb 140s/turn + 12px/13s.
         FrameLayout bgLayer = new FrameLayout(this);
         bgLayer.setBackgroundColor(bg);
 
         ImageView ring = new ImageView(this);
         ring.setImageResource(R.drawable.bg_spiral);
-        // 100% EXE dashboard geometry (pc/gui.go #bgart): ring = 52vw wide
-        // (capped at 640px), pushed 24vw off the right edge and 14vh above
-        // the top edge; spiral.webp aspect (900x932) keeps the height.
+        // LS dashboard geometry (android assets/public #bgart): ring = 88vw
+        // (capped at 560px), 38vw off the right edge, 8vw above the top edge;
+        // spiral.webp aspect (900x932) keeps the height. Opacity .68.
         android.util.DisplayMetrics dmp = getResources().getDisplayMetrics();
         int sw = dmp.widthPixels, sh = dmp.heightPixels;
-        int ringW = (int) Math.min(sw * 0.52f, dp(640));
+        int ringW = (int) Math.min(sw * 0.88f, dp(560));
         int ringH = (int) (ringW * 932.0 / 900.0);
         FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(ringW, ringH);
         rp.gravity = Gravity.TOP | Gravity.END;
-        rp.setMarginEnd((int) (-sw * 0.24f));
-        rp.topMargin = (int) (-sh * 0.14f);
+        rp.setMarginEnd((int) (-sw * 0.38f));
+        rp.topMargin = (int) (-sw * 0.08f);
         ring.setLayoutParams(rp);
-        ring.setAlpha(0.5f);
+        ring.setAlpha(0.68f);
         RotateAnimation ringSpin = new RotateAnimation(0f, 360f,
                 Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
         ringSpin.setDuration(120000L);
@@ -383,7 +388,7 @@ public class MainActivity extends Activity {
         ringSpin.setRepeatCount(Animation.INFINITE);
         ring.startAnimation(ringSpin);
         TranslateAnimation ringFloat = new TranslateAnimation(0f, 0f, dp(16), -dp(16));
-        ringFloat.setDuration(6000L);
+        ringFloat.setDuration(12000L);
         ringFloat.setRepeatMode(Animation.REVERSE);
         ringFloat.setRepeatCount(Animation.INFINITE);
         ring.startAnimation(ringFloat);
@@ -391,15 +396,15 @@ public class MainActivity extends Activity {
 
         ImageView orb = new ImageView(this);
         orb.setImageResource(R.drawable.bg_orb);
-        // orb = 30vw (capped at 380px), 10vw off the left edge and 22vh
-        // below the bottom edge - the exact EXE composition.
-        int orbS = (int) Math.min(sw * 0.30f, dp(380));
+        // orb = 70vw (capped at 420px), 13vw off the left edge and 12vw
+        // below the bottom edge - the exact LS composition. Opacity .56.
+        int orbS = (int) Math.min(sw * 0.70f, dp(420));
         FrameLayout.LayoutParams op = new FrameLayout.LayoutParams(orbS, orbS);
         op.gravity = Gravity.BOTTOM | Gravity.START;
-        op.leftMargin = (int) (-sw * 0.10f);
-        op.bottomMargin = (int) (-sh * 0.22f);
+        op.leftMargin = (int) (-sw * 0.13f);
+        op.bottomMargin = (int) (-sw * 0.12f);
         orb.setLayoutParams(op);
-        orb.setAlpha(0.4f);
+        orb.setAlpha(0.56f);
         RotateAnimation orbSpin = new RotateAnimation(0f, 360f,
                 Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
         orbSpin.setDuration(140000L);
@@ -407,7 +412,7 @@ public class MainActivity extends Activity {
         orbSpin.setRepeatCount(Animation.INFINITE);
         orb.startAnimation(orbSpin);
         TranslateAnimation orbFloat = new TranslateAnimation(0f, 0f, dp(12), -dp(12));
-        orbFloat.setDuration(6500L);
+        orbFloat.setDuration(13000L);
         orbFloat.setRepeatMode(Animation.REVERSE);
         orbFloat.setRepeatCount(Animation.INFINITE);
         orb.startAnimation(orbFloat);
