@@ -23,8 +23,8 @@ android {
         applicationId = "com.threesverse.wifitransfer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.4.11"
+        versionCode = 20
+        versionName = "1.4.12"
     }
 
     signingConfigs {

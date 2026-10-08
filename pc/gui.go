@@ -138,9 +138,9 @@ body{font:14px/1.5 -apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#
 #bgart{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
 #bgart>div{position:absolute;will-change:transform}
 #bgart img{position:relative;display:block;width:100%;height:auto;will-change:transform}
-.bg-ring{right:-24vw;top:-14vh;width:min(52vw,640px);opacity:.5;animation:bgfloatR 12s ease-in-out infinite}
+.bg-ring{right:-24vw;top:-14vh;width:min(52vw,640px);opacity:.9;animation:bgfloatR 12s ease-in-out infinite}
 .bg-ring img{animation:bgspin 120s linear infinite}
-.bg-orb{left:-10vw;bottom:-22vh;width:min(30vw,380px);opacity:.4;animation:bgfloatO 13s ease-in-out infinite}
+.bg-orb{left:-10vw;bottom:-22vh;width:min(30vw,380px);opacity:.95;animation:bgfloatO 13s ease-in-out infinite}
 .bg-orb img{animation:bgspin 140s linear infinite}
 @keyframes bgspin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes bgfloatR{0%,100%{transform:translateY(-16px)}50%{transform:translateY(16px)}}

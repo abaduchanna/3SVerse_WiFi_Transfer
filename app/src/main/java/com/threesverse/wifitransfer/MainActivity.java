@@ -409,7 +409,7 @@ public class MainActivity extends Activity {
         rp.setMarginEnd((int) (-sw * 0.38f));
         rp.topMargin = (int) (-sw * 0.08f);
         ring.setLayoutParams(rp);
-        ring.setAlpha(0.68f);
+        ring.setAlpha(0.9f);
         // Spin + float TOGETHER. (View.startAnimation() holds ONE animation -
         // the second call replaced the first, so the ring only bobbed and
         // never spun like the website. Property animators compose properly.)
@@ -436,7 +436,7 @@ public class MainActivity extends Activity {
         op.leftMargin = (int) (-sw * 0.13f);
         op.bottomMargin = (int) (-sw * 0.12f);
         orb.setLayoutParams(op);
-        orb.setAlpha(0.56f);
+        orb.setAlpha(0.95f);
         // Same fix as the ring: spin + float as two property animators.
         ObjectAnimator orbSpin = ObjectAnimator.ofFloat(orb, View.ROTATION, 0f, 360f);
         orbSpin.setDuration(140000L);
