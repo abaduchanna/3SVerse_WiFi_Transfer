@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- API 31+ splash screen: brand-dark background behind the launcher
+         icon so the system splash matches the 3SVerse tile. All base theme
+         items are repeated (v31 variants replace, not merge). -->
+    <style name="AppThemeLight" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#0E7C8C</item>
+        <item name="android:navigationBarColor">#F5F1E6</item>
+        <item name="android:statusBarColor">#E8E4D9</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">#F5F1E6</item>
+        <item name="android:colorBackground">#F5F1E6</item>
+        <item name="android:textColorPrimary">#14121A</item>
+        <item name="android:textColorSecondary">#6B6880</item>
+        <item name="android:windowSplashScreenBackground">#141725</item>
+    </style>
+
+    <style name="AppThemeDark" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#6EE7EF</item>
+        <item name="android:navigationBarColor">#0D0C14</item>
+        <item name="android:statusBarColor">#07060B</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#07060B</item>
+        <item name="android:colorBackground">#07060B</item>
+        <item name="android:textColorPrimary">#F5F1E6</item>
+        <item name="android:textColorSecondary">#9B97B3</item>
+        <item name="android:windowSplashScreenBackground">#141725</item>
+    </style>
+</resources>
