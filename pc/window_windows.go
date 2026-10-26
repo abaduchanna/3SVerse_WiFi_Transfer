@@ -75,40 +75,6 @@ func webView2DataDir() (string, bool) {
         return dir, true
 }
 
-// classicWindowSize returns the dashboard's classic window size (owner order
-// 2026-10-27: "pehle wali window size theek thi"). The design size is 1160x800
-// exactly as it has always been; on a monitor whose work area (screen minus
-// taskbar) is SMALLER than that, the window is clamped so it never opens cut
-// off or off-screen. On normal monitors the size is identical to the classic
-// behaviour.
-func classicWindowSize() (int, int) {
-        const (
-                designW = 1160
-                designH = 800
-        )
-        user32 := windows.NewLazySystemDLL("user32.dll")
-        getWorkArea := user32.NewProc("SystemParametersInfoW")
-        type workAreaRect struct{ left, top, right, bottom int32 }
-        var rect workAreaRect
-        ok, _, _ := getWorkArea.Call(0x0030 /*SPI_GETWORKAREA*/, 0,
-                uintptr(unsafe.Pointer(&rect)), 0)
-        if ok != 0 {
-                waW := int(rect.right - rect.left)
-                waH := int(rect.bottom - rect.top)
-                if waW > 0 && waH > 0 {
-                        w, h := designW, designH
-                        if w > waW {
-                                w = waW
-                        }
-                        if h > waH {
-                                h = waH
-                        }
-                        return w, h
-                }
-        }
-        return designW, designH
-}
-
 // openAppWindow blocks until the user closes the window. Returns true when a
 // window was actually created (main shuts down after it closes), false when
 // the caller should fall back to a browser.
@@ -124,14 +90,13 @@ func openAppWindow(url string) bool {
         runtime.LockOSThread()
         defer runtime.UnlockOSThread()
 
-        winW, winH := classicWindowSize()
         w := webview2.NewWithOptions(webview2.WebViewOptions{
                 Debug:     false,
                 DataPath:  dataDir,
                 WindowOptions: webview2.WindowOptions{
                         Title:  "3SVerse WiFi Transfer",
-                        Width:  winW,
-                        Height: winH,
+                        Width:  1160,
+                        Height: 800,
                         Center: true,
                         IconId: 1, // RT_GROUP_ICON id written by goversioninfo
                 },
