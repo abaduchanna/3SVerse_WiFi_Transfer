@@ -130,8 +130,8 @@ func openAppWindow(url string) bool {
                 DataPath:  dataDir,
                 WindowOptions: webview2.WindowOptions{
                         Title:  "3SVerse WiFi Transfer",
-                        Width:  uint(winW),
-                        Height: uint(winH),
+                        Width:  winW,
+                        Height: winH,
                         Center: true,
                         IconId: 1, // RT_GROUP_ICON id written by goversioninfo
                 },
