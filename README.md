@@ -25,10 +25,10 @@ your TP-Link (or any) router at the maximum speed both devices support — typic
 
 ### PC (Windows)
 
-1. Download `3SVerse-WiFi-Transfer-PC-v*.exe` from [Releases](../../releases/latest)
+1. Download `3SVerse-WiFi-Transfer-PC.exe` from [Releases](../../releases/latest)
    - it is a **single file, no installer, no zip** (plain Go binary: clean profile
    for antivirus / SentinelOne - no self-extraction, no packer behavior).
-2. Double-click `3SVerse-WiFi-Transfer-PC-v*.exe`. A console window opens showing
+2. Double-click `3SVerse-WiFi-Transfer-PC.exe`. A console window opens showing
    the big **PC Address**, e.g. `192.168.1.5:8765`.
 3. The dashboard opens in the **3SVerse WiFi Transfer app window**. Windows
    Firewall rules are added automatically (one UAC prompt the very first time -
@@ -45,7 +45,7 @@ instead of the app window), `-no-open` (do not open anything), `-no-firewall`
 
 ### Phone (Android 8.0+)
 
-1. Download `3SVerse-WiFi-Transfer-Android-*.apk` from
+1. Download `3SVerse-WiFi-Transfer-Android.apk` from
    [Releases](../../releases/latest) and install it (allow "install unknown apps").
 2. Connect the phone to the **same WiFi router** as the PC (important: not mobile data).
 3. Open the app — it shows **"PC found: 192.168.x.x"** automatically.
