@@ -125,13 +125,18 @@ func openBrowser(url string) {
 }
 
 const guiHTML = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en" class="booting"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#07060b">
 <title>3SVerse WiFi Transfer — PC Receiver</title>
 <link rel="icon" href="/favicon.ico">
 <style>
 :root{color-scheme:dark}
+/* 3SVerse boot splash: pure CSS on <html>, paints before the page body */
+html{background:#07060b}
+html.booting::before{content:'';position:fixed;inset:0;z-index:2147483646;background:url(/assets/logo.png) center 42%/min(62vw,300px) auto no-repeat,#07060b}
+html.booting::after{content:'WIFI TRANSFER  \00B7  STARTING';position:fixed;left:0;right:0;top:calc(42% + 64px);z-index:2147483647;text-align:center;font:600 11px/1 Roboto,Segoe UI,sans-serif;letter-spacing:.3em;color:#8b87a0;padding-bottom:26px;background:linear-gradient(90deg,#6ee7ef,#b57cf4,#e83dcc) center bottom/72px 3px no-repeat}
+html.booting-out::before,html.booting-out::after{opacity:0;transition:opacity .35s ease}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font:14px/1.5 -apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#07060b;color:#f5f1e6;min-height:100vh;overflow-x:hidden}
 .mono{font-family:'DM Mono',ui-monospace,'Cascadia Mono',Menlo,monospace}
@@ -290,4 +295,5 @@ box.textContent=lines.join('\n')})}
 setInterval(pollOutbox,2000);pollOutbox(true);
 setInterval(poll,1000);poll();
 </script>
+<script>(function(){var h=document.documentElement,t0=Date.now();function done(){setTimeout(function(){h.classList.add("booting-out");setTimeout(function(){h.classList.remove("booting","booting-out")},380)},Math.max(0,700-(Date.now()-t0)))}if(document.readyState==="complete")done();else window.addEventListener("load",done);setTimeout(done,8000)})();</script>
 </body></html>`
